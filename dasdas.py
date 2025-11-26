@@ -136,6 +136,113 @@ async def on_ready():
     dapetin_cache_file()
 
 @bot.event
+async def help (ctx, command_name: str = None):
+    data_tolong= {
+        "join": {
+            "deskripis:" "bot masuk ke voice lu berada"
+            "cara pake:" "!join"
+            "contoh:" "!join"   
+        },
+        "play": {
+            "deskripsi:" "mainin lagu yang lu mau, asal file nya ada di pc gw"
+            "cara pake:" "!play <nama_lagu>"
+            "contoh:" "!play rabbit hole\n!play Shoujo rei"
+        },
+        "queue": {
+            "deskripsi:" "ngeliat antrian yang lagi ada"
+            "cara pake:" "!queue"
+            "contoh:" "!queue"
+        },
+        "now": {
+            "deskripsi:" "ngeliat lu lagi mainin lagu apa"
+            "cara pake:" "!now"
+            "contoh:" "!now"
+        },
+        "search": {
+            "deskripsi:" "nyari lagu lu ada apa kagak"
+            "cara pake:" "!search"
+            "contoh:" "!search rabbit hole\n!search shoujo rei"
+        },
+        "pause": {
+            "deskripsi:" "nge pause lagu yang lagi lu maiinin"
+            "cara pake:" "!pause"
+            "contoh:" "!pause"
+        },
+        "resume": {
+            "deskripsi:" "ngelanjutin lagu yang di pausse"
+            "cara pake:" "!pause <saat_terputar_lagu>"
+            "contoh:" "!resume"
+        },
+        "next": {
+            "deskripsi:" "ngelanjutin musik kalau ada antriannya"
+            "cara pake:" "!next"
+            "contoh:" "!next"
+        },
+        "refresh": {
+            "deskripsi:" "nge refesh cache klo bot rada dongo"
+            "cara pake:" "!refresh"
+            "contoh:" "!refresh"
+        },
+        "volume": {
+            "deskripsi:" "ngatur volume botnya"
+            "cara pake:" "!volume <level_volume>"
+            "contoh:" "!volume 100"
+        },
+        "leave": {
+            "deskripsi:" "ngeluarin bot dari voice"
+            "cara pake:" "!leave"
+            "contoh:" "!leave"
+        },
+        "help": {
+            "deskripsi:" "nampilin ginian"
+            "cara pake:" "!help ato ga !help<command>"
+            "contoh:" "!help\n!help play"
+        }
+    }
+    if command_name:
+        command_name = command_name.lower()
+        if command_name in data_tolong:
+            data = data_tolong[command_name]
+            embed = discord.Embed(
+                title=f"Komand: !{command_name}",
+                color=0x00ff00
+            )
+            embed.add_feld(name="deskripsi",value=data["deskripsi"], inline=False)
+            embed.add_feld(name="cara pake", value=f"'{data['cara pake']}", inline=False)
+            embed.add_feld(name="contoh", value=f"'{data['contoh']}", inline=False)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(f"Komand !{command_name} ga ada, ato ga blom gw tambahin")
+    else:
+        embed=discord.Embed(
+            judul="*pertolongan bot*",
+            deskripsi="List komand yang gw masukin:",
+            color=0x7289FDA
+        )
+        basic_komand=""
+        playback_komand=""
+        queue_komand=""
+        komand_lainnya=""
+        for cmd, data in data_tolong.items():
+            line = f"- '!{cmd}' - {data['deskripsi']}\n"
+            if cmd in ["join", "leave", "help"]:
+                basic_komand += line
+            elif cmd in ["play", "search", "refresh"]:
+                basic_komand += line
+            elif cmd in ["pause", "resume", "next", "now"]:
+                kontrol_komand += line
+        if basic_komand:
+            embed.add_feld(name="*basic komand*", value=basic_komand, inline=False)
+        if playback_komand:
+            embed.add_feld(name="*playback komand*", value=playback_komand, inline=False)
+        if queue_komand:
+            embed.add_feld(name="*queue komand*", value=queue_komand, inline=False)        
+        if komand_lainnya:
+            embed.add_feld(name="*komanf yang lain*", value=komand_lainnya, inline=False)
+        embed.sed_footer(text="pake !help <command> klo lu mau tw lebih lajut")
+        await ctx.send(embed=embed)
+    
+@bot.event
 async def on_command_error(ctx, error):
     embed = discord.Embed(title="Error", color=discord.Color.red())
     if isinstance(error, commands.CommandNotFound):
@@ -173,7 +280,7 @@ async def queue(ctx):
         return
     now_current_playing = ""
     if guild_id in current_playing:
-        now_current_playing = f"*SABAR INI LAGI PLAY* {os.path.basename(current_playing[guild_id])}\n\n"
+        now_current_playing = f"SABAR INI LAGI PLAY {os.path.basename(current_playing[guild_id])}\n\n"
     formatted = "\n".join([f"{i+1}. {os.path.basename(f)}" for i, f in enumerate(queues[guild_id])])
     await ctx.send(f"{now_current_playing} nih antriannya\n{formatted}")
 
@@ -237,7 +344,7 @@ async def search(ctx, *, query: str):
             nama_file = os.path.basename(file_path)
             format_baris.append(f"-{nama_file}(di {folder})")
         else:
-            format_baris.append("f-{file_path}")
+            format_baris.append(f"-{file_path}")
     formatted = "\n".join(format_baris)
     await ctx.send(f"nih ya embut '{query}':\n{formatted}")
 
@@ -305,6 +412,13 @@ async def leave (ctx):
         await ctx.send("bot kabur dlu le.")
     else:
         await ctx.send("Botnya gada di dalem")
+
+@bot.command()
+async def volume (ctx, level: int):
+    if 0 <= level <= 100:
+        await ctx.send(f"volume lu di atur di {level}")
+    else:
+        await ctx.send("atur volume sampe 0-100 dongok")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
