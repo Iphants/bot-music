@@ -135,7 +135,6 @@ async def on_ready():
     print (f"Bot {bot.user} on aktif dinyalakan")
     dapetin_cache_file()
 
-
 @bot.event
 async def on_command_error(ctx, error):
     embed = discord.Embed(title="Error", color=discord.Color.red())
@@ -157,68 +156,68 @@ async def on_command_error(ctx, error):
     except Exception:
         print("gagal kirim embed error")
 
-@bot.event
+@bot.command()
 async def help (ctx, command_name: str = None):
-    data_tolong= {
+    data_tolong={
         "join": {
-            "deskripis:" "bot masuk ke voice lu berada"
-            "cara pake:" "!join"
-            "contoh:" "!join"   
+            "deskripsi": "bot masuk ke voice lu berada",
+            "cara pake": "!join",
+            "contoh": "!join"   
         },
         "play": {
-            "deskripsi:" "mainin lagu yang lu mau, asal file nya ada di pc gw"
-            "cara pake:" "!play <nama_lagu>"
-            "contoh:" "!play rabbit hole\n!play Shoujo rei"
+            "deskripsi": "mainin lagu yang lu mau, asal file nya ada di pc gw",
+            "cara pake": "!play <nama_lagu>",
+            "contoh": "!play rabbit hole\n!play Shoujo rei"
         },
         "queue": {
-            "deskripsi:" "ngeliat antrian yang lagi ada"
-            "cara pake:" "!queue"
-            "contoh:" "!queue"
+            "deskripsi": "ngeliat antrian yang lagi ada",
+            "cara pake": "!queue",
+            "contoh": "!queue"
         },
         "now": {
-            "deskripsi:" "ngeliat lu lagi mainin lagu apa"
-            "cara pake:" "!now"
-            "contoh:" "!now"
+            "deskripsi": "ngeliat lu lagi mainin lagu apa",
+            "cara pake": "!now",
+            "contoh": "!now"
         },
         "search": {
-            "deskripsi:" "nyari lagu lu ada apa kagak"
-            "cara pake:" "!search"
-            "contoh:" "!search rabbit hole\n!search shoujo rei"
+            "deskripsi": "nyari lagu lu ada apa kagak",
+            "cara pake": "!search",
+            "contoh": "!search rabbit hole\n!search shoujo rei"
         },
         "pause": {
-            "deskripsi:" "nge pause lagu yang lagi lu maiinin"
-            "cara pake:" "!pause"
-            "contoh:" "!pause"
+            "deskripsi": "nge pause lagu yang lagi lu maiinin",
+            "cara pake": "!pause",
+            "contoh": "!pause"
         },
         "resume": {
-            "deskripsi:" "ngelanjutin lagu yang di pausse"
-            "cara pake:" "!pause <saat_terputar_lagu>"
-            "contoh:" "!resume"
+            "deskripsi": "ngelanjutin lagu yang di pausse",
+            "cara pake": "!pause <saat_terputar_lagu>",
+            "contoh": "!resume"
         },
         "next": {
-            "deskripsi:" "ngelanjutin musik kalau ada antriannya"
-            "cara pake:" "!next"
-            "contoh:" "!next"
+            "deskripsi": "ngelanjutin musik kalau ada antriannya",
+            "cara pake": "!next",
+            "contoh": "!next"
         },
         "refresh": {
-            "deskripsi:" "nge refesh cache klo bot rada dongo"
-            "cara pake:" "!refresh"
-            "contoh:" "!refresh"
+            "deskripsi": "nge refesh cache klo bot rada dongo",
+            "cara pake": "!refresh",
+            "contoh": "!refresh"
         },
         "volume": {
-            "deskripsi:" "ngatur volume botnya"
-            "cara pake:" "!volume <level_volume>"
-            "contoh:" "!volume 100"
+            "deskripsi": "ngatur volume botnya",
+            "cara pake": "!volume <level_volume>",
+            "contoh": "!volume 100"
         },
         "leave": {
-            "deskripsi:" "ngeluarin bot dari voice"
-            "cara pake:" "!leave"
-            "contoh:" "!leave"
+            "deskripsi": "ngeluarin bot dari voice",
+            "cara pake": "!leave",
+            "contoh": "!leave"
         },
         "help": {
-            "deskripsi:" "nampilin ginian"
-            "cara pake:" "!help ato ga !help<command>"
-            "contoh:" "!help\n!help play"
+            "deskripsi": "nampilin ginian",
+            "cara pake": "!help ato ga !help<command>",
+            "contoh": "!help\n!help play"
         }
     }
     if command_name:
@@ -237,9 +236,9 @@ async def help (ctx, command_name: str = None):
             await ctx.send(f"Komand !{command_name} ga ada, ato ga blom gw tambahin")
     else:
         embed=discord.Embed(
-            judul="*pertolongan bot*",
-            deskripsi="List komand yang gw masukin:",
-            color=0x7289FDA
+            title="*pertolongan bot*",
+            description="List komand yang gw masukin:",
+            color=0x7289DA
         )
         basic_komand=""
         playback_komand=""
@@ -250,9 +249,9 @@ async def help (ctx, command_name: str = None):
             if cmd in ["join", "leave", "help"]:
                 basic_komand += line
             elif cmd in ["play", "search", "refresh"]:
-                basic_komand += line
+                playback_komand += line
             elif cmd in ["pause", "resume", "next", "now"]:
-                kontrol_komand += line
+                queue_komand += line
         if basic_komand:
             embed.add_field(name="*basic komand*", value=basic_komand, inline=False)
         if playback_komand:
@@ -260,11 +259,10 @@ async def help (ctx, command_name: str = None):
         if queue_komand:
             embed.add_field(name="*queue komand*", value=queue_komand, inline=False)        
         if komand_lainnya:
-            embed.add_field(name="*komanf yang lain*", value=komand_lainnya, inline=False)
+            embed.add_field(name="*komand yang lain*", value=komand_lainnya, inline=False)
         embed.set_footer(text="pake !help <command> klo lu mau tw lebih lajut")
         await ctx.send(embed=embed)
     
-
 @bot.command()
 async def join(ctx):
     if ctx.author.voice:
@@ -430,4 +428,4 @@ async def on_voice_state_update(member, before, after):
             del queues[guild_id]
         if guild_id in current_playing:
             del current_playing[guild_id]
-bot.run("bot_tokenmu)
+bot.run("token_botmu")
