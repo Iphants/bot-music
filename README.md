@@ -1,78 +1,100 @@
-# bot-music
--
 # Discord Local Music Bot
 
-## Deskripsi
-
-Bot ini adalah Discord Music Bot yang memutar file musik lokal dari folder di PC/server. Mendukung antrian per guild, fuzzy search, auto-play next, dan sistem cache supaya pencarian lebih cepat.
+Bot musik Discord yang memutar file audio langsung dari folder lokal pada PC/server. Dirancang untuk performa stabil, pencarian cepat menggunakan cache + fuzzy search, serta mendukung queue per guild.
 
 ---
 
-## Fitur Utama
+##  Fitur Utama
 
-* Fuzzy Search (pencarian mirip meskipun typo)
-* Cache folder musik
-* Queue per guild
-* Auto next track
-* Duplicate filtering
-* Volume control
-
----
-
-## Alur Kerja Bot
-
-1. User menjalankan command **!play <judul>**
-2. Bot melakukan pencarian lagu melalui sistem cache + fuzzy search
-3. Lagu dimasukkan ke queue guild terkait
-4. Jika tidak ada lagu sedang dimainkan → bot langsung mainkan lagu pertama
-5. Setelah lagu selesai → `after_play()` memanggil `play_next()`
-6. Lagu berikutnya dimainkan otomatis jika queue masih ada isinya
+- Putar musik dari folder lokal
+- Fuzzy Search untuk menangani typo
+- Sistem cache agar pencarian cepat
+- Queue per guild
+- Auto play lagu berikutnya
+- Pause, resume, skip
+- Volume control
+- Menghapus duplikat hasil pencarian
 
 ---
 
-##  Konsep
-
-| Konsep                      | Kegunaan                               |
-| --------------------------- | -------------------------------------- |
-| `deque`                     | Struktur antrian FIFO untuk queue lagu |
-| `difflib.get_close_matches` | Fuzzy Search                           |
-| `set()`                     | Menghapus duplikat hasil pencarian     |
-| `FFmpegPCMAudio`            | Streaming audio                        |
-| Recursive callback          | Auto play next                         |
-| Cache timestamp             | Mencegah scan folder berulang          |
-
----
-
-## Command Bot
-
-| Command              | Fungsi                              |
-| -------------------- | ----------------------------------- |
-| `!play <judul>`      | Putar lagu / queue jika sedang play |
-| `!search <judul>`    | Cari judul musik lokal              |
-| `!queue`             | Lihat daftar antrian                |
-| `!pause` / `!resume` | Pause / resume musik                |
-| `!next`              | Skip lagu                           |
-| `!now`               | Lihat lagu yang sedang diputar      |
-| `!refresh`           | Refresh cache musik                 |
-| `!leave`             | Bot keluar dari voice               |
-
----
-
-## Struktur Proyek
-
+##  Struktur 
 ```
-MusicBot
-┣ musik/               # folder musik lokal
-┣ bot.py               # file utama bot
-┣ README.md            # dokumentasi
+MusicBot/
+┣ musik/                 # folder musik lokal
+┣ dasdas.py              # file utama bot
+┣ README.md
 ```
+---
+
+##  Install & Setup
+
+1. Install dependency:
+2. ```
+   pip install discord.py
+   pip install PyNaCl
+  
+3. Pastikan FFmpeg sudah terinstall:
+   ffmpeg -version
+
+4. Masukkan token bot:
+   bot.run("token_botmu")
+
+5. Atur lokasi folder musik:
+   daftar_musik = r"E:\Music"
 
 ---
 
-## Lisensi
+##  Menjalankan Bot
+
+dasdas.py
+
+---
+
+##  Command
+
+| command           |                                   |
+| ----------------  | ----------------------------      |
+| !play <judul>     | -Putar lagu / masuk antrian      |
+| !search <judul>   | -Cari file musik lokal           |
+| !queue            | -Lihat antrian                   |
+| !pause            | -Pause                           |
+| !resume           | -Resume                          |
+| !next             | -Skip lagu                       |
+| !now              | -Lihat lagu yang sedang diputar  |
+| !refresh          | -Refresh cache musik             |
+| !join             | -Bot masuk voice                 |
+| !leave            | -Bot keluar voice                |
+
+##  Cara Kerja Singkat
+
+1. User mengirim !play <judul>.
+2. Bot mencari file melalui cache atau fuzzy search.
+3. Lagu dimasukkan ke queue.
+4. Jika idle, lagu dimainkan.
+5. Setelah lagu selesai, callback after_play() → play_next().
+6. Queue habis → bot berhenti.
+
+---
+
+##  Konsep yang Dipakai
+
+- deque untuk antrian FIFO
+- difflib.get_close_matches untuk fuzzy search
+- Cache timestamp untuk menghindari scan folder berulang
+- FFmpegPCMAudio untuk audio streaming
+- Recursive callback untuk auto next
+- set() untuk hilangkan duplikat hasil pencarian
+
+---
+
+##  Batasan
+
+- Hanya memutar file dari storage lokal
+- Bot harus berjalan di PC/server yang selalu aktif
+- Tidak mendukung YouTube / Spotify
+
+---
+
+##  Lisensi
 
 Open-source — bebas dikembangkan.
-
----
-
-Silakan gunakan dan modifikasi. Bila ingin ditambahkan contoh kode OOP / diagram arsitektur, tinggal bilang
