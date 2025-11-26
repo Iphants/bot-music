@@ -135,6 +135,28 @@ async def on_ready():
     print (f"Bot {bot.user} on aktif dinyalakan")
     dapetin_cache_file()
 
+
+@bot.event
+async def on_command_error(ctx, error):
+    embed = discord.Embed(title="Error", color=discord.Color.red())
+    if isinstance(error, commands.CommandNotFound):
+        return
+    elif isinstance(error, commands.MissingRequiredArgument):
+        embed.description = f"Argumen '{error.param.name}' wajib diisi"
+    elif isinstance(error, commands.CommandOnCooldown):
+        embed.description = f"Sabar jembut, coba lagi pas '{error.retry_after:.2f} detik."
+    elif isinstance(error, commands.MissingPermissions):
+        embed.description = f"Permission lu kurang: '{','.join(error.missing_permissions)}"
+    elif isinstance(error, commands.CommandInvokeError):
+        embed.description = f"error internal: {error.original}"
+        print(traceback.format_exc())
+    else:
+        embed.description = f"error gajelas: {error}"
+    try:    
+        await ctx.send(embed=embed)
+    except Exception:
+        print("gagal kirim embed error")
+
 @bot.event
 async def help (ctx, command_name: str = None):
     data_tolong= {
@@ -207,9 +229,9 @@ async def help (ctx, command_name: str = None):
                 title=f"Komand: !{command_name}",
                 color=0x00ff00
             )
-            embed.add_feld(name="deskripsi",value=data["deskripsi"], inline=False)
-            embed.add_feld(name="cara pake", value=f"'{data['cara pake']}", inline=False)
-            embed.add_feld(name="contoh", value=f"'{data['contoh']}", inline=False)
+            embed.add_field(name="deskripsi",value=data["deskripsi"], inline=False)
+            embed.add_field(name="cara pake", value=f"'{data['cara pake']}", inline=False)
+            embed.add_field(name="contoh", value=f"'{data['contoh']}", inline=False)
             await ctx.send(embed=embed)
         else:
             await ctx.send(f"Komand !{command_name} ga ada, ato ga blom gw tambahin")
@@ -232,36 +254,16 @@ async def help (ctx, command_name: str = None):
             elif cmd in ["pause", "resume", "next", "now"]:
                 kontrol_komand += line
         if basic_komand:
-            embed.add_feld(name="*basic komand*", value=basic_komand, inline=False)
+            embed.add_field(name="*basic komand*", value=basic_komand, inline=False)
         if playback_komand:
-            embed.add_feld(name="*playback komand*", value=playback_komand, inline=False)
+            embed.add_field(name="*playback komand*", value=playback_komand, inline=False)
         if queue_komand:
-            embed.add_feld(name="*queue komand*", value=queue_komand, inline=False)        
+            embed.add_field(name="*queue komand*", value=queue_komand, inline=False)        
         if komand_lainnya:
-            embed.add_feld(name="*komanf yang lain*", value=komand_lainnya, inline=False)
-        embed.sed_footer(text="pake !help <command> klo lu mau tw lebih lajut")
+            embed.add_field(name="*komanf yang lain*", value=komand_lainnya, inline=False)
+        embed.set_footer(text="pake !help <command> klo lu mau tw lebih lajut")
         await ctx.send(embed=embed)
     
-@bot.event
-async def on_command_error(ctx, error):
-    embed = discord.Embed(title="Error", color=discord.Color.red())
-    if isinstance(error, commands.CommandNotFound):
-        return
-    elif isinstance(error, commands.MissingRequiredArgument):
-        embed.description = f"Argumen '{error.param.name}' wajib diisi"
-    elif isinstance(error, commands.CommandOnCooldown):
-        embed.description = f"Sabar jembut, coba lagi pas '{error.retry_after:.2f} detik."
-    elif isinstance(error, commands.MissingPermissions):
-        embed.description = f"Permission lu kurang: '{','.join(error.missing_permissions)}"
-    elif isinstance(error, commands.CommandInvokeError):
-        embed.description = f"error internal: {error.original}"
-        print(traceback.format_exc())
-    else:
-        embed.description = f"error gajelas: {error}"
-    try:    
-        await ctx.send(embed=embed)
-    except Exception:
-        print("gagal kirim embed error")
 
 @bot.command()
 async def join(ctx):
@@ -428,4 +430,4 @@ async def on_voice_state_update(member, before, after):
             del queues[guild_id]
         if guild_id in current_playing:
             del current_playing[guild_id]
-bot.run("isi_tokenmu")
+bot.run("bot_tokenmu)
