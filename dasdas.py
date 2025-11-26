@@ -13,7 +13,7 @@ intents.message_content = True
 intents.voice_states = True
 intents.guilds = True
 intents.members = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 daftar_musik = r"E:\Music"
 queues={}
 current_playing = {}
@@ -429,3 +429,4 @@ async def on_voice_state_update(member, before, after):
         if guild_id in current_playing:
             del current_playing[guild_id]
 bot.run("token_botmu")
+
