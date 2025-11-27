@@ -34,8 +34,9 @@ MusicBot/
    pip install PyNaCl
   
 3. Pastikan FFmpeg sudah terinstall:
+   ```
    ffmpeg -version
-
+   ```
 4. Masukkan token bot:
    bot.run("token_botmu")
 
