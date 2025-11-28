@@ -20,6 +20,7 @@ current_playing = {}
 file_cache = {}
 cache_timestamp = 0
 cache_durasi = 30
+tingkat_suara = {}
 
 def buat_music_cache():
     music_files = {}
@@ -119,7 +120,8 @@ def play_next(guild_id, voice_client):
                 play_next (guild_id, voice_client)
                 return
             ff_source = FFmpegPCMAudio(source=path_penuh, executable="ffmpeg", options="-vn -loglevel panic")
-            source = PCMVolumeTransformer(ff_source, volume=0.5)
+            volume = tingkat_suara.get(guild_id, 0.5)
+            source = PCMVolumeTransformer(ff_source, volume=volume)
             voice_client.play(source, after=partial(after_play, guild_id, voice_client))
         else:
             current_playing.pop(guild_id, None)
@@ -190,7 +192,7 @@ async def help (ctx, command_name: str = None):
             "contoh": "!pause"
         },
         "resume": {
-            "deskripsi": "ngelanjutin lagu yang di pausse",
+            "deskripsi": "ngelanjutin lagu yang di pause",
             "cara pake": "!pause <saat_terputar_lagu>",
             "contoh": "!resume"
         },
@@ -213,6 +215,11 @@ async def help (ctx, command_name: str = None):
             "deskripsi": "ngeluarin bot dari voice",
             "cara pake": "!leave",
             "contoh": "!leave"
+        },
+       "remove": {
+            "deskripsi":"ngehapus lagu di antrian lu (ga berlaku untuk lagu yang lagi dimainin)",
+            "cara pake":"!remove <angka_antrian> atau !remove <nama_lagu>",
+            "contoh":"!remove 1 atau !remove telepathy"
         },
         "help": {
             "deskripsi": "nampilin ginian",
@@ -250,7 +257,7 @@ async def help (ctx, command_name: str = None):
                 basic_komand += line
             elif cmd in ["play", "search", "refresh"]:
                 playback_komand += line
-            elif cmd in ["pause", "resume", "next", "now"]:
+            elif cmd in ["pause", "resume", "next", "now", "remove"]:
                 queue_komand += line
         if basic_komand:
             embed.add_field(name="*basic komand*", value=basic_komand, inline=False)
@@ -323,7 +330,8 @@ async def play(ctx, *, nama_file: str):
     try:
         current_playing[guild_id] = file_rel_path
         ff_source = FFmpegPCMAudio(source=file_path_full, executable="ffmpeg", options="-vn -loglevel panic")
-        source = PCMVolumeTransformer(ff_source, volume=0.5)
+        volume = tingkat_suara.get(guild_id, 0.5)
+        source = PCMVolumeTransformer(ff_source, volume=volume)
         voice_client.play(source, after=partial(after_play, guild_id, voice_client))
         await ctx.send (f"Lagi jalanin ini le: {os.path.basename(file_rel_path)}")
     except Exception as e:
@@ -416,9 +424,29 @@ async def leave (ctx):
 @bot.command()
 async def volume (ctx, level: int):
     if 0 <= level <= 100:
+        guild_id = ctx.guild.id
+        tingkat_suara[guild_id] = level / 100
         await ctx.send(f"volume lu di atur di {level}")
     else:
         await ctx.send("atur volume sampe 0-100 dongok")
+
+@bot.command()
+async def remove(ctx, *, target):
+    guild_id = ctx.guild.id
+    if guild_id not in queues or not queues[guild_id]:
+        return await ctx.send ("Antrian kosong kek masa depan lu")
+    queue = queues[guild_id]
+    if target.isdigit():
+        pos = int(target) - 1
+        if pos < 1 or pos >= len(queue):
+            return await ctx.send("salah angka lu nya")
+        removed = queue.pop(pos)
+        return await ctx.send(f"gw hapus ya:{os.path.basename(removed)}") 
+    target = target.lower()
+    for i, file_path in enumerate(queue):
+        if os.path.basename(file_path).lower() == target:
+            removed = queue.pop(i)
+            return await ctx.send(f"gw hapus ya:{os.path.basename(removed)}")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -429,4 +457,3 @@ async def on_voice_state_update(member, before, after):
         if guild_id in current_playing:
             del current_playing[guild_id]
 bot.run("token_botmu")
-
