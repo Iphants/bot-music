@@ -406,8 +406,6 @@ async def pause(ctx):
     else:
         await ctx.send("tuli kah? gada musiknya")
 
-#
-
 @bot.command()
 async def resume(ctx):
     async with kunci_lagu(ctx.guild.id):
@@ -502,4 +500,4 @@ async def on_voice_state_update(member, before, after):
         async with kunci_lagu(guild_id):
             queues.pop(guild_id, None)
             current_playing.pop(guild_id, None)
-bot.run("token_botmu")
+bot.run("bot_tokenmu")
