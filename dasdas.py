@@ -7,6 +7,7 @@ import traceback
 from functools import partial
 from collections import deque
 import time
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -21,6 +22,8 @@ file_cache = {}
 cache_timestamp = 0
 cache_durasi = 30
 tingkat_suara = {}
+ulang_lagu = {}
+kunci_guild = {}
 
 def buat_music_cache():
     music_files = {}
@@ -74,10 +77,15 @@ def cari_lagu(query):
         print(f"error jir ngebaca direktori nya: {e}")
         return []
     
-def cari__file_cocok(nama_file):
+def kunci_lagu(guild_id):
+    if guild_id not in kunci_guild:
+        kunci_guild[guild_id] = asyncio.Lock()
+    return kunci_guild[guild_id]
+
+def cari_file_cocok(nama_file):
     try:
         semua_file_cache = dapetin_cache_file()
-        nama_file_lower = nama_file.lower()
+        nama_file_lower = nama_file.lower().strip()
         if nama_file_lower in semua_file_cache:
             return semua_file_cache[nama_file_lower][0]
         qnorm = nama_file_lower.replace("\\", "/")
@@ -88,6 +96,9 @@ def cari__file_cocok(nama_file):
                 nama_file_ext = nama_file_lower + ext
                 if nama_file_ext in semua_file_cache:
                     return semua_file_cache[nama_file_ext][0]
+        for key in semua_file_cache.keys():
+            if nama_file_lower in key:
+                return semua_file_cache[key][0]
         hasil_fuzzy = cari_lagu(nama_file)
         if hasil_fuzzy:
             return hasil_fuzzy[0]
@@ -100,8 +111,22 @@ def after_play(guild_id, voice_client, error):
     if error:
         print(f"error pas mainin (guild {guild_id}): {error}")
     try:
-        if voice_client and getattr(voice_client, "is_connected", lambda: False)():
-            play_next(guild_id, voice_client)
+        if ulang_lagu.get(guild_id, False):
+            if voice_client.is_playing():
+                return
+            lagu = current_playing.get(guild_id)
+            if lagu:
+                path = os.path.join(daftar_musik, lagu)
+                source = FFmpegPCMAudio(source=path, executable="FFmpeg", options= "-vn -loglevel panic")
+                volume = tingkat_suara.get(guild_id, 0.5)
+                source = PCMVolumeTransformer (source, volume=volume)
+                voice_client.play(source, after=partial(after_play, guild_id, voice_client))
+            return
+        if voice_client and getattr(voice_client, "is_connected", lambda:False)():
+            asyncio.run_coroutine_threadsafe(
+                play_next(guild_id, voice_client),
+                 bot.loop
+            )
         else:
             current_playing.pop(guild_id, None)
             queues.pop(guild_id, None)
@@ -109,28 +134,32 @@ def after_play(guild_id, voice_client, error):
         print (f"after_play handler error {e}")
         current_playing.pop(guild_id, None)
 
-def play_next(guild_id, voice_client):
-    try:
-        if guild_id in queues and queues[guild_id]:
-            lagu_berikutnya = queues[guild_id].popleft()
-            current_playing[guild_id] = lagu_berikutnya
-            path_penuh = os.path.join(daftar_musik, lagu_berikutnya)
-            if not os.path.exists(path_penuh):
-                print(f"file not found saat play_next: {path_penuh}")
-                play_next (guild_id, voice_client)
-                return
-            ff_source = FFmpegPCMAudio(source=path_penuh, executable="ffmpeg", options="-vn -loglevel panic")
-            volume = tingkat_suara.get(guild_id, 0.5)
-            source = PCMVolumeTransformer(ff_source, volume=volume)
-            voice_client.play(source, after=partial(after_play, guild_id, voice_client))
-        else:
-            current_playing.pop(guild_id, None)
-            if guild_id in queues and not current_playing:
-                queues[guild_id] = deque()
-            print (f"antrian abis untuk guild {guild_id}")
-    except Exception as e:
-        print (f"Error mainin lagu selanjutnya ajah: {e}")
+async def play_next(guild_id, voice_client):
+    if not voice_client or not voice_client.is_connected():
         current_playing.pop(guild_id, None)
+        queues.pop(guild_id, None)
+        return
+    if guild_id not in queues or not queues[guild_id]:
+        current_playing.pop(guild_id, None)
+        print(f"Antrian kosong jir untuk guild {guild_id}")
+        return
+    while queues[guild_id]:
+        file_rel_path = queues[guild_id].popleft()
+        path_full = os.path.join(daftar_musik, file_rel_path)
+        if not os.path.exists(path_full):
+            print (f"file ilang, nooo:{path_full}")
+            continue
+        current_playing[guild_id] = file_rel_path
+        try:
+            src = FFmpegPCMAudio(source=path_full, executable="FFmpeg", options="-vn -loglevel panic")
+            vol =tingkat_suara.get(guild_id, 0.5)
+            source = PCMVolumeTransformer(src, volume=vol)
+            voice_client.play(source, after=partial(after_play, guild_id, voice_client))
+            return
+        except Exception as e:
+            print(f"Gagal ngeplay jir:{path_full}: {e}")
+            current_playing.pop(guild_id, None)
+            print("gada lagu yang valid yang bisa di puter jir")            
 
 @bot.event
 async def on_ready():
@@ -225,6 +254,11 @@ async def help (ctx, command_name: str = None):
             "deskripsi": "nampilin ginian",
             "cara pake": "!help ato ga !help<command>",
             "contoh": "!help\n!help play"
+        },
+        "repeat": {
+            "deskripsi": "ngulangin lagu yang lagi lu mainin",
+            "cara pake": "!repeat",
+            "contoh" : "!repeat"
         }
     }
     if command_name:
@@ -255,7 +289,7 @@ async def help (ctx, command_name: str = None):
             line = f"- '!{cmd}' - {data['deskripsi']}\n"
             if cmd in ["join", "leave", "help"]:
                 basic_komand += line
-            elif cmd in ["play", "search", "refresh"]:
+            elif cmd in ["play", "search", "refresh", "repeat", "volume"]:
                 playback_komand += line
             elif cmd in ["pause", "resume", "next", "now", "remove"]:
                 queue_komand += line
@@ -301,7 +335,7 @@ async def play(ctx, *, nama_file: str):
     queues.setdefault(guild_id, [])
     if guild_id not in queues or not isinstance(queues[guild_id], deque):
         queues[guild_id] = deque()
-    file_rel_path = cari__file_cocok(nama_file)
+    file_rel_path = cari_file_cocok(nama_file)
     if not file_rel_path:
         hasil_saran = cari_lagu(nama_file)
         if hasil_saran:
@@ -329,7 +363,7 @@ async def play(ctx, *, nama_file: str):
         return
     try:
         current_playing[guild_id] = file_rel_path
-        ff_source = FFmpegPCMAudio(source=file_path_full, executable="ffmpeg", options="-vn -loglevel panic")
+        ff_source = FFmpegPCMAudio(source=file_path_full, executable="FFmpeg", options="-vn -loglevel panic")
         volume = tingkat_suara.get(guild_id, 0.5)
         source = PCMVolumeTransformer(ff_source, volume=volume)
         voice_client.play(source, after=partial(after_play, guild_id, voice_client))
@@ -372,88 +406,100 @@ async def pause(ctx):
     else:
         await ctx.send("tuli kah? gada musiknya")
 
+#
+
 @bot.command()
 async def resume(ctx):
-    voice_client = ctx.voice_client
-    if voice_client and voice_client.is_paused():
-        voice_client.resume()
-        await ctx.send("infokan penglanjutan musik")
-    else:
-        await ctx.send("tuli kah? gada musik yg berhenti")
+    async with kunci_lagu(ctx.guild.id):
+        voice_client = ctx.voice_client
+        if voice_client and voice_client.is_paused():
+            voice_client.resume()
+            await ctx.send("infokan penglanjutan musik")
+        else:
+            await ctx.send("tuli kah? gada musik yg berhenti")
 
 @bot.command()
 async def now(ctx):
-    guild_id = ctx.guild.id
-    if guild_id in current_playing:
-        await ctx.send (f"lu lagi dengerin: {os.path.basename(current_playing[guild_id])}")
-    else:
-        await ctx.send("tuli kah gada musiknya")
+    async with kunci_lagu(ctx.guild.id):
+        guild_id = ctx.guild.id
+        if guild_id in current_playing:
+            await ctx.send (f"lu lagi dengerin: {os.path.basename(current_playing[guild_id])}")
+        else:
+            await ctx.send("tuli kah gada musiknya")
 
 @bot.command()
 async def next(ctx):
     voice_client = ctx.voice_client
     guild_id = ctx.guild.id
-    if not voice_client or not voice_client.is_connected():
-        await ctx.send("Botnya gada di dalem, pake !join")
-        return
-    if not voice_client.is_playing() and not voice_client.is_paused():
-        await ctx.send("tuli kah? gada musiknya")
-        return
-    if guild_id in queues and queues[guild_id]:
-        voice_client.stop()
-        await ctx.send("skip dah lagu berikutnya")
-    else:
-        voice_client.stop()
-        if guild_id in current_playing:
-            del current_playing[guild_id]
+    async with kunci_lagu(guild_id):
+        if not voice_client or not voice_client.is_connected():
+            await ctx.send("Botnya gada di dalem, pake !join")
+            return
+        if not voice_client.is_playing() and not voice_client.is_paused():
+            await ctx.send("tuli kah? gada musiknya")
+            return
+        if guild_id in queues and queues[guild_id]:
+            voice_client.stop()
+            await ctx.send("skip dah lagu berikutnya")
+        else:
+            voice_client.stop()
+            current_playing.pop(guild_id, None)
             await ctx.send("Gada antrian, isi dlu oon, sekalian berhenti bentar lagunya")
 
 @bot.command()
 async def leave (ctx):
-    if ctx.voice_client:
-        guild_id = ctx.guild.id
-        if guild_id in queues:
-            del queues[guild_id]
-        if guild_id in current_playing:
-            del current_playing[guild_id]
-        await ctx.voice_client.disconnect()
-        await ctx.send("bot kabur dlu le.")
-    else:
-        await ctx.send("Botnya gada di dalem")
+    guild_id = ctx.guild.id
+    async with kunci_lagu(guild_id):
+        if ctx.voice_client:
+            queues.pop(guild_id, None)
+            current_playing.pop(guild_id, None)
+            await ctx.voice_client.disconnect()
+            await ctx.send("Botnya gada di dalem")
 
 @bot.command()
 async def volume (ctx, level: int):
-    if 0 <= level <= 100:
-        guild_id = ctx.guild.id
-        tingkat_suara[guild_id] = level / 100
-        await ctx.send(f"volume lu di atur di {level}")
-    else:
-        await ctx.send("atur volume sampe 0-100 dongok")
+    guild_id = ctx.guild.id
+    async with kunci_lagu(guild_id):
+        if 0 <= level <= 100:
+            tingkat_suara[guild_id] = level / 100
+            await ctx.send(f"volume lu di atur di {level}")
+        else:
+            await ctx.send("atur volume sampe 0-100 dongok")
+
+@bot.command()
+async def repeat(ctx):
+    guild_id = ctx.guild.id
+    async with kunci_lagu(guild_id):
+        baru = not ulang_lagu.get(guild_id, False)
+        ulang_lagu[guild_id] = baru
+        await ctx.send(f"repeat nya lagi: {'nyala' if baru else 'mati'}")    
 
 @bot.command()
 async def remove(ctx, *, target):
     guild_id = ctx.guild.id
-    if guild_id not in queues or not queues[guild_id]:
-        return await ctx.send ("Antrian kosong kek masa depan lu")
-    queue = queues[guild_id]
-    if target.isdigit():
-        pos = int(target) - 1
-        if pos < 1 or pos >= len(queue):
-            return await ctx.send("salah angka lu nya")
-        removed = queue.pop(pos)
-        return await ctx.send(f"gw hapus ya:{os.path.basename(removed)}") 
-    target = target.lower()
-    for i, file_path in enumerate(queue):
-        if os.path.basename(file_path).lower() == target:
-            removed = queue.pop(i)
-            return await ctx.send(f"gw hapus ya:{os.path.basename(removed)}")
+    async with kunci_lagu(guild_id):
+        if guild_id not in queues or not queues[guild_id]:
+            return await ctx.send ("Antrian kosong kek masa depan lu")
+        queue = queues[guild_id]
+        if target.isdigit():
+            pos = int(target) - 1
+            if pos < 1 or pos >= len(queue):
+                return await ctx.send("salah angka lu nya")
+            removed = queue.pop(pos)
+            return await ctx.send(f"gw hapus ya:{os.path.basename(removed)}") 
+        target = target.lower()
+        for i, file_path in enumerate(queue):
+            if os.path.basename(file_path).lower() == target:
+                removed = queue.pop(i)
+                return await ctx.send(f"gw hapus ya:{os.path.basename(removed)}")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    if member.id == bot.user.id and before.channel and not after.channel:
+    if member.id != bot.user.id:
+        return
+    if before.channel and not after.channel:
         guild_id = before.channel.guild.id
-        if guild_id in queues:
-            del queues[guild_id]
-        if guild_id in current_playing:
-            del current_playing[guild_id]
+        async with kunci_lagu(guild_id):
+            queues.pop(guild_id, None)
+            current_playing.pop(guild_id, None)
 bot.run("token_botmu")
