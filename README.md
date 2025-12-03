@@ -65,6 +65,7 @@ dasdas.py
 | !refresh          | -Refresh cache musik             |
 | !join             | -Bot masuk voice                 |
 | !leave            | -Bot keluar voice                |
+| !repeat           | -Lagu akan di repeat             |
 
 ##  Cara Kerja Singkat
 
