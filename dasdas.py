@@ -288,11 +288,11 @@ async def help (ctx, command_name: str = None):
             "cara pake": "!leave",
             "contoh": "!leave"
         },
-       #"remove": {
-           # "deskripsi":"ngehapus lagu di antrian lu (ga berlaku untuk lagu yang lagi dimainin)",
-          #  "cara pake":"!remove <angka_antrian> atau !remove <nama_lagu>",
-           # "contoh":"!remove 1 atau !remove telepathy"
-        #},
+       "remove": {
+            "deskripsi":"ngehapus lagu di antrian lu (ga berlaku untuk lagu yang lagi dimainin)",
+            "cara pake":"!remove <angka_antrian> atau !remove <nama_lagu>",
+            "contoh":"!remove 1 atau !remove telepathy"
+        },
         "help": {
             "deskripsi": "nampilin ginian",
             "cara pake": "!help ato ga !help<command>",
@@ -334,7 +334,7 @@ async def help (ctx, command_name: str = None):
                 basic_komand += line
             elif cmd in ["play", "search", "refresh", "repeat", "volume"]:
                 playback_komand += line
-            elif cmd in ["pause", "resume", "next", "now", #"remove",
+            elif cmd in ["pause", "resume", "next", "now", "remove",
                          "shuffle"]:
                 queue_komand += line
         if basic_komand:
@@ -616,3 +616,4 @@ async def on_voice_state_update(member, before, after):
             current_playing.pop(guild_id, None)
 
 bot.run("bot_token")
+
