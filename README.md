@@ -1,35 +1,126 @@
-# bot-music-discord
+# Discord Local Music Bot (Modular)
 
-Modular Discord music bot (local files) using `discord.py`.
+Modular Discord music bot untuk memutar file musik lokal menggunakan `discord.py`.
+Mendukung queue per guild, fuzzy search, auto-play, dan sistem cache untuk performa.
 
-## Run (any OS)
+---
 
-Set environment variables:
+## Fitur Utama
 
-- `DISCORD_TOKEN`: your bot token
-- `MUSIC_DIR`: folder containing your music files (mp3/wav/flac/m4a)
-- `FFMPEG_PATH` (optional): path to ffmpeg binary (useful on Windows)
+- Memutar musik lokal (mp3 / wav / flac / m4a)
+- Fuzzy search (tetap ketemu meski typo)
+- Cache folder musik (scan sekali, pakai berkali-kali)
+- Queue per guild (server)
+- Auto play lagu berikutnya
+- Duplicate filtering
+- Volume control
 
-### Linux/macOS
+---
 
-```bash
-export DISCORD_TOKEN="..."
+## Konsep & Arsitektur
+
+| Konsep                      | Kegunaan                               |
+| --------------------------- | -------------------------------------- |
+| `deque`                     | Struktur antrian FIFO lagu             |
+| `difflib.get_close_matches` | Fuzzy search                            |
+| `set()`                     | Filter duplikasi hasil pencarian        |
+| `FFmpegPCMAudio`            | Streaming audio ke voice channel       |
+| Callback chaining           | Auto play lagu berikutnya              |
+| Cache timestamp             | Hindari scan folder berulang            |
+
+---
+
+## Alur Kerja Bot
+
+1. User menjalankan command `!play <judul>`
+2. Bot mencari lagu via cache + fuzzy search
+3. Lagu dimasukkan ke queue guild
+4. Jika belum ada lagu diputar → langsung play
+5. Setelah lagu selesai → bot otomatis play lagu berikutnya
+6. Queue habis → bot idle
+
+---
+
+## Command Bot
+
+| Command              | Fungsi                              |
+| -------------------- | ----------------------------------- |
+| `!play <judul>`      | Putar / tambahkan lagu ke queue     |
+| `!search <judul>`    | Cari lagu lokal                     |
+| `!queue`             | Lihat daftar antrian                |
+| `!pause` / `!resume` | Pause / lanjutkan musik             |
+| `!next`              | Skip lagu                           |
+| `!now`               | Lagu yang sedang diputar            |
+| `!refresh`           | Refresh cache musik                 |
+| `!leave`             | Bot keluar dari voice channel       |
+
+---
+
+## Struktur Proyek
+
+├── app/
+│ ├── commands/
+│ ├── bot_instance.py
+│ ├── config.py
+│ ├── events.py
+│ ├── music_cache.py
+│ ├── player.py
+│ ├── runtime.py
+│ └── state.py
+├── main.py
+├── README.md
+└── .env.example
+
+
+---
+
+## Cara Menjalankan Bot
+
+### Environment Variables
+
+Wajib:
+- `DISCORD_TOKEN` : token bot Discord
+- `MUSIC_DIR`     : folder berisi file musik
+
+Opsional:
+- `FFMPEG_PATH`   : path ffmpeg (jika tidak ada di PATH)
+
+---
+
+### Linux / macOS
+
+export DISCORD_TOKEN="YOUR_TOKEN"
 export MUSIC_DIR="$HOME/Music"
 python3 main.py
-```
+
+
+---
 
 ### Windows (PowerShell)
 
-```powershell
-$env:DISCORD_TOKEN="..."
+$env:DISCORD_TOKEN="YOUR_TOKEN"
 $env:MUSIC_DIR="D:\Music"
-# optional:
-# $env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"
+
+optional:
+$env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"
+
+---
 python main.py
-```
 
-## Notes
 
-- Default `MUSIC_DIR` (if not set): `~/Music` if it exists, otherwise `./Music`.
-- FFmpeg default: `ffmpeg` (must be available in PATH, or set `FFMPEG_PATH`).
+---
 
+## Catatan
+
+- Default `MUSIC_DIR`:
+  - `~/Music` jika ada
+  - fallback ke `./Music`
+- Default ffmpeg: `ffmpeg` (harus tersedia di PATH)
+- Bot hanya memutar file lokal (tidak streaming online)
+
+---
+
+## Lisensi
+
+Open-source.
+Bebas digunakan dan dikembangkan.
