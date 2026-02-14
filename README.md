@@ -56,24 +56,6 @@ Mendukung queue per guild, fuzzy search, auto-play, dan sistem cache untuk perfo
 
 ---
 
-## Struktur Proyek
-
-├── app/
-│ ├── commands/
-│ ├── bot_instance.py
-│ ├── config.py
-│ ├── events.py
-│ ├── music_cache.py
-│ ├── player.py
-│ ├── runtime.py
-│ └── state.py
-├── main.py
-├── README.md
-└── .env.example
-
-
----
-
 ## Cara Menjalankan Bot
 
 ### Environment Variables
@@ -89,24 +71,33 @@ Opsional:
 
 ### Linux / macOS
 
+```
 export DISCORD_TOKEN="YOUR_TOKEN"
+```
+```
 export MUSIC_DIR="$HOME/Music"
+```
+```
 python3 main.py
-
+```
 
 ---
 
 ### Windows (PowerShell)
-
+```
 $env:DISCORD_TOKEN="YOUR_TOKEN"
+```
+```
 $env:MUSIC_DIR="D:\Music"
+```
 
 optional:
+```
 $env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"
-
----
+```
+```
 python main.py
-
+```
 
 ---
 
