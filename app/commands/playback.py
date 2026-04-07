@@ -2,12 +2,15 @@ from __future__ import annotations
 import os
 import time
 import traceback
+import discord
 from discord import FFmpegPCMAudio, PCMVolumeTransformer
 from discord.ext import commands
 from .. import config
 from .. import music_cache
 from .. import player
 from .. import state
+from ..yt import get_audio_source
+from functools import partial
 
 def setup(bot: commands.Bot) -> None:
     @bot.command()
@@ -21,16 +24,16 @@ def setup(bot: commands.Bot) -> None:
             player.ensure_deques(guild_id)
 
         file_rel_path = music_cache.cari_file_cocok(nama_file)
+
         if not file_rel_path:
             hasil_saran = music_cache.cari_lagu(nama_file)
             if hasil_saran:
                 saran = "\n".join([f"-{os.path.basename(f)}" for f in hasil_saran[:20]])
-                await ctx.send(f"Blom gw tambahin jir {nama_file}, yang ini kah?\n{saran}")
-                return
+                await ctx.send(f"Blom gw tambahin jir {nama_file}, yang ini kah?\n{saran}\n\natau coba cari di youtube?: ketik: !yt {nama_file}")
             else:
-                await ctx.send("Blom gw tambahin jir musiknya")
+                await ctx.send(f"Blom gw tambahin jir {nama_file}, coba cari di youtube?: ketik: !yt {nama_file} ")
                 return
-
+            
         file_path_full = config.music_root_dir() / file_rel_path
         if not file_path_full.exists():
             await ctx.send("Musiknya corrupt atau hilang jir")
@@ -55,12 +58,61 @@ def setup(bot: commands.Bot) -> None:
             )
             volume = state.tingkat_suara.get(guild_id, 0.5)
             source = PCMVolumeTransformer(ff_source, volume=volume)
-            voice_client.play(source, after=player.partial(player.after_play, guild_id, voice_client))
+            voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
             await ctx.send(f"Lagi jalanin ini le: {os.path.basename(file_rel_path)}")
         except Exception as e:
             state.current_playing.pop(guild_id, None)
             await ctx.send(f"error anjay {e}")
             print(traceback.format_exc())
+
+    @bot.command()
+    async def yt(ctx, *, query: str):
+        voice_client = ctx.voice_client
+        if not voice_client:
+            await ctx.send("Botnya gada di dalem, pake !join")
+            return
+        
+        guild_id = ctx.guild.id
+        async with player.kunci_lagu(guild_id):
+            player.ensure_deques(guild_id)
+
+        await ctx.send(f"cariin di yt bentar: {query}...")
+
+        try:
+            data = await get_audio_source(f"ytsearch:{query}")
+        except Exception as e:
+            await ctx.send(f"gagal cari di yt: {e}")
+            return
+        
+        stream_url = data["url"]
+        title = data["title"]
+
+        ff_source = FFmpegPCMAudio(
+            source=stream_url,
+            executable=config.ffmpeg_executable(),
+            options="-vn -loglevel panic",
+        )
+
+        volume = state.tingkat_suara.get(guild_id, 0.5)
+        source = PCMVolumeTransformer(ff_source, volume=volume)
+
+        if voice_client.is_playing() or voice_client.is_paused():
+            player.ensure_deques(guild_id)
+            state.queue_asli[guild_id].append(data)
+            state.play_queue[guild_id].append(data)
+            await ctx.send(f"sabar yaa, ini masuk ke antrian yt: {title}")
+        else:
+            voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
+            state.current_playing[guild_id] = data
+
+            embed = discord.Embed(
+                title=title,
+                description="sekarang lagi diputar",
+                color=0x00ffcc
+            )
+            if data.get("thumbnail"):
+                embed.set_thumbnail(url=data["thumbnail"])
+            await ctx.send(embed=embed)
 
     @bot.command()
     async def search(ctx, *, query: str):
@@ -109,10 +161,15 @@ def setup(bot: commands.Bot) -> None:
         async with player.kunci_lagu(ctx.guild.id):
             guild_id = ctx.guild.id
             if guild_id in state.current_playing:
-                await ctx.send(f"lu lagi dengerin: {os.path.basename(state.current_playing[guild_id])}")
-            else:
-                await ctx.send("tuli kah gada musiknya")
+                current = state.current_playing[guild_id]
 
+                if isinstance(current, dict):
+                    await ctx.send(f"lu lagi dengerin: {current.get('title')}")
+                else:
+                    await ctx.send(f"lu lagi dengerin: {os.path.basename(current)}")
+            else:
+                await ctx.send("tuli kah? gada musiknya")
+        
     @bot.command()
     async def next(ctx):
         voice_client = ctx.voice_client
@@ -125,7 +182,13 @@ def setup(bot: commands.Bot) -> None:
                 await ctx.send("tuli kah? gada musiknya")
                 return
             voice_client.stop()
-            await ctx.send("skip dah ke lagu berikutnya")
+
+        await ctx.send("skip dah ke lagu berikutnya")
+        # trigger play_next immediately to ensure the queue advances
+        try:
+            await player.play_next(guild_id, voice_client)
+        except Exception as e:
+            print(f"Error running play_next from next command: {e}")
 
     @bot.command()
     async def volume(ctx, level: int):

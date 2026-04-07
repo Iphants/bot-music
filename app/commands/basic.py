@@ -81,6 +81,11 @@ def setup(bot: commands.Bot) -> None:
                 "cara pake": "!repeat",
                 "contoh": "!repeat",
             },
+            "yt": {
+                "deskripsi": "nyari dan muter lagu langsung dari YouTube",
+                "cara pake": "!yt <judul_lagu>",
+                "contoh": "!yt yoasobi tabun\n!yt alan walker faded",
+            },
         }
 
         if command_name:
