@@ -15,23 +15,15 @@ def get_audio_metadata(file_path):
         if isinstance(val, list):
             return str(val[0])
         return str(val)
-    
-    title = ambil("title")
-    artist = ambil("artist")
-    album = ambil("album")
-    duration = int(audio.info.length) if audio.info and audio.info.length else 0
-
     return {
-        "title": title,
-        "artist": artist,
-        "album": album,
-        "duration": duration
+        "title": ambil("title"),
+        "artist": ambil("artist"),
+        "album": ambil("album"),
+        "duration": int(audio.info.length) if audio.info and audio.info.length else 0
     }
 
-def get_cover(file_path):
+def get_cover(audio):
     try:
-        audio = File(file_path)
-
         if isinstance(audio, FLAC):
             if audio.pictures:
                 return audio.pictures[0].data
