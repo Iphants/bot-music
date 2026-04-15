@@ -5,7 +5,6 @@ from app.commands import basic, playback, queue_cmds
 
 def main() -> None:
     bot = create_bot()
-    runtime.set_bot_loop(bot.loop)
     events.setup(bot)
     basic.setup(bot)
     playback.setup(bot)

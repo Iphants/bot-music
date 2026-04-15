@@ -17,7 +17,6 @@ def buat_music_cache():
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, root_dir)
                 katkunc_nama = file.lower()
-                # normalize separators so stored rel paths work across OS
                 katkunc_rel = rel_path.replace(os.sep, "/").lower()
                 rel_path_norm = rel_path.replace(os.sep, "/")
                 music_files.setdefault(katkunc_nama, []).append(rel_path_norm)
@@ -41,19 +40,29 @@ def cari_lagu(query):
         query_lower = query.lower()
         if query_lower in semua_file_cache:
             return semua_file_cache[query_lower].copy()
+        hasil = []
+        for key in semua_file_cache.keys():
+            if query_lower in key:
+                hasil.extend(semua_file_cache[key])
+        if hasil:
+            return list(dict.fromkeys(hasil))[:10]
+
         semua_katkunc = list(semua_file_cache.keys())
-        hasil_fuzzy = difflib.get_close_matches(query_lower, semua_katkunc, n=20, cutoff=0.5)
+        hasil_fuzzy = difflib.get_close_matches(query_lower, semua_katkunc, n=20, cutoff=0.65)
         semua_hasil = []
+
         for key in hasil_fuzzy:
             semua_hasil.extend(semua_file_cache.get(key, []))
         seen = set()
         out = []
+
         for item in semua_hasil:
             if item not in seen:
                 seen.add(item)
                 out.append(item)
-            if len(out) >= 20:
+            if len(out) >= 10:
                 break
+            
         return out
     except Exception as e:
         print(f"error jir ngebaca direktori nya: {e}")

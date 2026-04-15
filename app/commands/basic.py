@@ -92,7 +92,7 @@ def setup(bot: commands.Bot) -> None:
             command_name = command_name.lower()
             if command_name in data_tolong:
                 data = data_tolong[command_name]
-                embed = discord.Embed(title=f"Komand: !{command_name}", color=0x00FF00)
+                embed = discord.Embed(title=f"Komand: !{command_name}", color=0xFFA500)
                 embed.add_field(name="deskripsi", value=data["deskripsi"], inline=False)
                 embed.add_field(name="cara pake", value=f"'{data['cara pake']}", inline=False)
                 embed.add_field(name="contoh", value=f"'{data['contoh']}", inline=False)
@@ -103,7 +103,7 @@ def setup(bot: commands.Bot) -> None:
             embed = discord.Embed(
                 title="*pertolongan bot*",
                 description="List komand yang gw masukin:",
-                color=0x7289DA,
+                color=0xFFA500,
             )
             basic_komand = ""
             playback_komand = ""
@@ -113,7 +113,7 @@ def setup(bot: commands.Bot) -> None:
                 line = f"- '!{cmd}' - {data['deskripsi']}\n"
                 if cmd in ["join", "leave", "help"]:
                     basic_komand += line
-                elif cmd in ["play", "search", "refresh", "repeat", "volume"]:
+                elif cmd in ["play", "search", "refresh", "repeat", "volume", "yt"]:
                     playback_komand += line
                 elif cmd in ["pause", "resume", "next", "now", "remove", "shuffle"]:
                     queue_komand += line
@@ -130,12 +130,20 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def join(ctx):
-        if ctx.author.voice:
-            channel = ctx.author.voice.channel
-            await channel.connect()
-            await ctx.send("Bot masuk ke voice")
-        else:
+        if not ctx.author.voice:
             await ctx.send("Masuk voice dlu baru bisa")
+            return
+        channel = ctx.author.voice.channel
+
+        if ctx.voice_client:
+            if ctx.voice_client.channel == channel:
+                await ctx.send("udah ada di dalem voice ini")
+                return 
+            await ctx.voice_client.move_to(channel)
+            return
+        await channel.connect()
+        await ctx.send("Bot masuk ke voice")
+    
 
     @bot.command()
     async def leave(ctx):
@@ -144,6 +152,7 @@ def setup(bot: commands.Bot) -> None:
 
         async with player.kunci_lagu(guild_id):
             if ctx.voice_client:
+                player.cancel_idle_leave(guild_id)
                 state.queue_asli.pop(guild_id, None)
                 state.play_queue.pop(guild_id, None)
                 state.current_playing.pop(guild_id, None)

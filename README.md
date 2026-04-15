@@ -13,7 +13,7 @@ Mendukung queue per guild, fuzzy search, auto-play, dan sistem cache untuk perfo
 - Queue per guild (server)
 - Auto play lagu berikutnya
 - Duplicate filtering
-- Volume control
+- Volume control (still develop)
 
 ---
 
@@ -35,9 +35,10 @@ Mendukung queue per guild, fuzzy search, auto-play, dan sistem cache untuk perfo
 1. User menjalankan command `!play <judul>`
 2. Bot mencari lagu via cache + fuzzy search
 3. Lagu dimasukkan ke queue guild
-4. Jika belum ada lagu diputar → langsung play
-5. Setelah lagu selesai → bot otomatis play lagu berikutnya
-6. Queue habis → bot idle
+4. Jika belum ada lagu diputar =>  langsung play
+5. Setelah lagu selesai =>  bot otomatis play lagu berikutnya
+6. Queue habis =>  bot idle
+7. Bot idle selama 15 menit => bot keluar dari channel
 
 ---
 
@@ -53,6 +54,7 @@ Mendukung queue per guild, fuzzy search, auto-play, dan sistem cache untuk perfo
 | `!now`               | Lagu yang sedang diputar            |
 | `!refresh`           | Refresh cache musik                 |
 | `!leave`             | Bot keluar dari voice channel       |
+| `!yt`                | Mencari lagu dari youtube           |                
 
 ---
 
@@ -107,11 +109,4 @@ python main.py
   - `~/Music` jika ada
   - fallback ke `./Music`
 - Default ffmpeg: `ffmpeg` (harus tersedia di PATH)
-- Bot hanya memutar file lokal (tidak streaming online)
-
 ---
-
-## Lisensi
-
-Open-source.
-Bebas digunakan dan dikembangkan.

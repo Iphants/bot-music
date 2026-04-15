@@ -13,3 +13,7 @@ kunci_guild = {}
 flag_shuffle = {}
 queue_asli = {}
 play_queue = {}
+gabut = {}
+last_search = {}
+waktu_mulai = {}
+pause_offset = {}

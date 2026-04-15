@@ -4,25 +4,43 @@ import asyncio
 YTDL_OPTIONS = {
     "format": "bestaudio/best",
     "quiet": True,
+    "nocheckcertificate": True,
+    "no_warnings": True,
+    "default_search": "ytsearch",
+    "source_address": "0.0.0.0",
     "noplaylist": True,
+    "ignoreerrors": True,
+    "skip_download": True,
     "js_runtimes": {
         "node": {
             "path": "/usr/bin/node"
         },
     },
 }
+
+ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
+
 async def get_audio_source(query: str):
+    loop = asyncio.get_event_loop()
     def extract():
-        with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-            info = ydl.extract_info(query, download=False)
-
+        try:
+            info = ytdl.extract_info(query, download=False)
             if "entries" in info:
-                info = info["entries"][0]
-
+                entries = info.get("entries")
+                if not entries:
+                    raise Exception("ga nemu hasil dair Youtube")
+                info = entries[0]
+            url = info.get("url")
+            if not url:
+                raise Exception("Ga dapet stream URL")
             return {
-                "url": info["url"],
-                "title": info["title"],
-                "thumbnail": info.get("thumbnail")
+                "url": url,
+                "title": info.get("title", "Unknown Title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+                "webpage_url": info.get("webpage_url"),
+                "uploader": info.get("uploader"),           
             }
-
-    return await asyncio.to_thread(extract)
+        except Exception as e:
+            raise Exception(f"yt-dlp error: {e}")
+    return await loop.run_in_executor(None, extract)
