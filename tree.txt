@@ -1,0 +1,6 @@
+@bot.event
+async def on_ready():
+    print(f"login sebagai {bot.user}")
+
+    # 🔥 jalan di background
+    bot.loop.create_task(preload_cache_async())

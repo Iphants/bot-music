@@ -9,6 +9,8 @@ from . import music_cache
 from . import player
 from . import state
 from . import runtime
+from . import config, music_cache, state
+from . metadata import get_audio_metadata, get_cover
 
 
 def setup(bot: commands.Bot) -> None:
@@ -18,7 +20,11 @@ def setup(bot: commands.Bot) -> None:
         print(f"Bot {bot.user} on aktif dinyalakan")
         music_cache.dapetin_cache_file()
 
-    @bot.event
+        if not getattr(state, "cache_preload_stated", False):
+            state.cache_preload_started = True
+            asyncio.create_task(preload_cache_async())
+
+    @bot.event 
     async def on_command_error(ctx, error):
         embed = discord.Embed(title="Error", color=discord.Color.red())
         if isinstance(error, commands.CommandNotFound):
@@ -89,3 +95,34 @@ def setup(bot: commands.Bot) -> None:
                 state.queue_asli.pop(guild_id, None)
                 state.play_queue.pop(guild_id, None)
                 state.current_playing.pop(guild_id, None)
+    
+    cache = music_cache.buat_music_cache()
+
+    async def preload_cache_async():
+        base = config.music_root_dir()
+        semua_path = []
+
+        for v in cache.values():
+            semua_path.extend(v)
+        
+        semua_path = list(set(semua_path))
+        print(f"[CACHE] mulai preload {len(semua_path)} lagu")
+
+        for i, file_rel in enumerate(semua_path):
+            try:
+                path = base / file_rel
+                kunci = str(path)
+                if kunci not in state.metadata_cache:
+                    met = get_audio_metadata(path)
+                    if met:
+                        state.metadata_cache[kunci] = met
+                if kunci not in state.cover_cache:
+                    cov = get_cover(path)
+                    if cov:
+                        state.cover_cache[kunci] = cov
+                if i % 10 == 0:
+                    await asyncio.sleep(0)
+            except Exception as e:
+                print(f"[CACHE ERROR] {file_rel} -> {e}")
+
+        print ("[CACHE] selesai")

@@ -14,6 +14,24 @@ from ..yt import get_audio_source
 from functools import partial
 from ..metadata import get_audio_metadata, get_cover
 
+
+def _cover_filename(cover: bytes) -> str:
+    if cover.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "cover.png"
+    return "cover.jpg"
+
+
+async def _send_play_embed(ctx, embed: discord.Embed, cover: bytes | None) -> None:
+    if cover:
+        filename = _cover_filename(cover)
+        file = discord.File(fp=io.BytesIO(cover), filename=filename)
+        embed.set_thumbnail(url=f"attachment://{filename}")
+        await ctx.send(embed=embed, file=file)
+        return
+
+    await ctx.send(embed=embed)
+
+
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def play(ctx, *, nama_file: str):
@@ -43,38 +61,49 @@ def setup(bot: commands.Bot) -> None:
             await ctx.send("Musiknya corrupt atau hilang jir")
             return
 
+        kunci = str(file_path_full)
+
+        if kunci in state.metadata_cache:
+            metdat = state.metadata_cache[kunci]
+        else:
+            metdat = get_audio_metadata(file_path_full)
+            if metdat:
+                state.metadata_cache[kunci] = metdat
+        if kunci in state.cover_cache:
+            cover = state.cover_cache[kunci]
+        else:
+            cover = get_cover(file_path_full)
+            if cover:
+                state.cover_cache[kunci] = cover
+        if cover:    
+            print(f"[COVER DEBUG] {file_path_full}")
+            print(f"size: {len(cover)} bytes")
+        else:
+            print(f"[COVER DEBUG] {file_path_full} --> no cover")
+
+        if not metdat:
+            await ctx.send("gagal baca metadata")
+            return
+        
+        durasi = metdat["duration"]
+        menit = durasi // 60
+        detik = durasi % 60
+        title = (metdat["title"])                         
+        artist = metdat["artist"]                       
+        album = metdat["album"]     
+
         is_playing_now = voice_client.is_playing() or voice_client.is_paused() or guild_id in state.current_playing
         if is_playing_now:
             state.queue_asli[guild_id].append(file_rel_path)
             state.play_queue[guild_id].append(file_rel_path)
             posisi = len(state.queue_asli[guild_id])
-            metdat = get_audio_metadata(file_path_full)
 
-            if not metdat:
-                await ctx.send("gagal baca metadata")
-                return
-            
-            durasi = metdat["duration"]
-            menit = durasi // 60
-            detik = durasi % 60
-            title = (metdat["title"])                         
-            artist = metdat["artist"]                       
-            album = metdat["album"]                         
             embed = discord.Embed(title=title, description=f"oleh {artist}\nAlbum: {album}", color=0x41639b)                                                           
             embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True)   
             embed.add_field(name="Posisi", value=str(posisi), inline=True)
-            embed.add_field(name="\u200b", value="\u200b", inline=True) 
-            cover = get_cover(file_path_full)
-            
-            if cover:
-                file = discord.File(fp=io.BytesIO(cover), filename="cover.jpg")
-                embed.set_thumbnail(url="attachment://cover.jpg")
-                await ctx.send(embed=embed, file=file)
-            else:
-                await ctx.send(embed=embed)
+            await _send_play_embed(ctx, embed, cover)
             return
 
-        state.current_playing[guild_id] = file_rel_path
         player.ensure_deques(guild_id)
          
         try:
@@ -82,28 +111,14 @@ def setup(bot: commands.Bot) -> None:
             volume = state.tingkat_suara.get(guild_id, 0.5)
             source = player.build_audio(str(file_path_full), volume=volume)
             voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
-            metdat = get_audio_metadata(file_path_full)
-
-            if not metdat:
-                await ctx.send("gagal baca metadata")
-                return
-            
-            durasi = metdat["duration"]
-            menit = durasi //60
-            detik = durasi % 60
-            title = (metdat["title"])                         
-            artist = metdat["artist"]                     
-            album = metdat["album"]                       
-            embed = discord.Embed(title=title, description=f"oleh {artist}\nAlbum: {album}", color=0x41639b)                                                           
-            embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True) 
-            embed.add_field(name="\u200b", value="\u200b", inline=True)
-            cover = get_cover(file_path_full)
-            if cover:
-                file = discord.File(fp=io.BytesIO(cover), filename="cover.jpg")
-                embed.set_thumbnail(url="attachment://cover.jpg")
-                await ctx.send(embed=embed, file=file)
-            else:
-                await ctx.send(embed=embed)
+    
+            embed = discord.Embed(
+                title=title,
+                description=f"oleh {artist}\nAlbum: {album}",
+                color=0x41639b
+            )   
+            embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True)
+            await _send_play_embed(ctx, embed, cover)
 
         except Exception as e:
             state.current_playing.pop(guild_id, None)
@@ -209,8 +224,113 @@ def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def refresh(ctx):
         state.file_cache = music_cache.buat_music_cache()
+        state.metadata_cache.clear()
+        state.cover_cache.clear()
         state.cache_timestamp = time.time()
         await ctx.send(f"cache nya lu update nih: {len(state.file_cache)} entries lu mbut")
+
+    @bot.command()
+    async def open(ctx, nomor: int):
+            data = state.folder_terakhir.get(ctx.author.id)
+
+            if not data:
+                await ctx.send("lu belom buka library")
+                return
+            
+            if nomor < 1:
+                await ctx.send("nomor ngawur")
+                return
+            
+            folders = data["folders"]
+            files = data["files"]
+            base = data["base"]
+
+            if nomor <= len(folders):
+                nama_folder = folders[nomor - 1]
+                base_baru = base / nama_folder
+
+                folder_baru = []
+                file_baru= []
+
+                for item in os.listdir(base_baru):
+                    full = base_baru / item
+                    if full.is_dir():
+                        folder_baru.append(item)
+                    else:
+                        file_baru.append(item)
+
+                folder_baru.sort()
+                file_baru.sort()
+
+                state.folder_terakhir[ctx.author.id] = {"base": base_baru, "folders": folder_baru, "files": file_baru}
+                garis = []
+
+                for i, f in enumerate(folder_baru[:10]):
+                    garis.append(f"{i+1}. [📁] {f}")
+
+                offset = len(folder_baru[:10])
+                for i, f in enumerate(file_baru[:10]):
+                    garis.append(f"{i+1+offset}. [🎵] {f}")
+
+                teks = "\n".join(garis) if garis else "kosong jir"
+                await ctx.send(f"📁 {nama_folder}:\n{teks}\n\nketik: !open <nomor>")
+                return
+            
+            # ==PLAY FILE==
+            index_file = nomor - len(folders) - 1
+
+            if index_file < 0 or index_file >= len(files):
+                await ctx.send("nomor ngawur")
+                return
+            
+            file_path = data["base"] / files[index_file]
+
+            #relative path ke music_root
+            rel = file_path.relative_to(config.music_root_dir())
+
+            await ctx.invoke( bot.get_command("play"), nama_file=str(rel))
+
+    @bot.command()
+    async def back (ctx):
+            data = state.folder_terakhir.get(ctx.author.id)
+
+            if not data:
+                await ctx.send("lu blom buka apa-apa")
+                return
+            
+            base = data["base"]
+
+            if base == config.music_root_dir():
+                await ctx.send("udah di root")
+                return
+            
+            base_baru = base.parent
+            folders = []
+            files = []
+
+            for item in os.listdir(base_baru):
+                full = base_baru / item
+                if full.is_dir():
+                    folders.append(item)
+                else:
+                    files.append(item)
+
+            folders.sort()
+            files.sort()
+
+            state.folder_terakhir[ctx.author.id] = {"base": base_baru, "folders": folders, "files": files}
+
+            garis = []
+
+            for i, f in enumerate(folders[:10]):
+                garis.append(f"{i+1}. [📁] {f}")
+
+            offset = len(folders[:10])
+            for i, f in enumerate(files[:10]):
+                garis.append(f"{i+1+offset}. [🎵] {f}")
+            
+            teks = "\n".join(garis) if garis else "kosong jir"
+            await ctx.send(f"📂 balik:\n{teks}")
 
     @bot.command()
     async def pause(ctx):
@@ -279,4 +399,3 @@ def setup(bot: commands.Bot) -> None:
             baru = not state.ulang_lagu.get(guild_id, False)
             state.ulang_lagu[guild_id] = baru
             await ctx.send(f"repeat nya lagi: {'nyala' if baru else 'mati'}")
-
