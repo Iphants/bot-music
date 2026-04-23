@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import discord
 
+# ===== DISCORD INTENTS =====
 def build_intents() -> discord.Intents:
     intents = discord.Intents.default()
     intents.message_content = True
@@ -10,6 +11,8 @@ def build_intents() -> discord.Intents:
     intents.guilds = True
     intents.members = True
     return intents
+
+# ===== MUSIC ROOT =====
 def music_root_dir() -> Path:
     """
     Cross-platform music directory.
@@ -26,6 +29,8 @@ def music_root_dir() -> Path:
     if home_music.exists():
         return home_music.resolve()
     return (Path.cwd() / "Music").resolve()
+
+# ===== FFMPEG PATH =====
 def ffmpeg_executable() -> str:
     """
     FFmpeg binary name/path.
@@ -33,16 +38,21 @@ def ffmpeg_executable() -> str:
     - Otherwise rely on PATH lookup ("ffmpeg")
     """
     return os.environ.get("FFMPEG_PATH", "ffmpeg")
+
+# ===== DISCORD TOKEN =====
 def discord_token() -> str:
     """
     Discord bot token from environment.
     """
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
+        # sengaja keras, biar ketahuan pas start
         raise RuntimeError(
             "Missing DISCORD_TOKEN env var. "
             "Set it before running: DISCORD_TOKEN=... python main.py"
         )
     return token
+
+# ===== CACHE CONFIG =====
 CACHE_DURATION_SECONDS: int = 30
 

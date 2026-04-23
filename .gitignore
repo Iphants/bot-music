@@ -1,3 +1,6 @@
 __pycache__/
 # *.pyc
 .env
+app/data/*.tmp
+app/data/*.json
+!app/data/.gitkeep

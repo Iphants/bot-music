@@ -8,9 +8,11 @@ from .. import player
 from .. import state
 
 
+# ===== COMMAND QUEUE =====
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def queue(ctx):
+        # ===== LIHAT QUEUE =====
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
@@ -34,6 +36,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def shuffle(ctx):
+        # ===== SHUFFLE QUEUE =====
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
@@ -55,6 +58,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def remove(ctx, *, target):
+        # ===== REMOVE QUEUE =====
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
@@ -84,13 +88,14 @@ def setup(bot: commands.Bot) -> None:
                 pos = int(target) - 1
                 if pos < 0 or pos >= len(state.queue_asli[guild_id]):
                     return await ctx.send("salah angka lu nya")
+
                 removed = state.queue_asli[guild_id][pos]
                 del state.queue_asli[guild_id][pos]
                 try:
                     state.play_queue[guild_id].remove(removed)
                 except ValueError:
                     pass
-                return await ctx.send(f"gw hapus ya: {os.path.basename(removed)}")
+                return await ctx.send(f"gw hapus ya: {item_name(removed)}")
 
             target_ = target.lower().strip()
             exact_matches = []
@@ -129,10 +134,11 @@ def setup(bot: commands.Bot) -> None:
             kandidat = difflib.get_close_matches(target_, semua_nama, n=5, cutoff=0.3)
 
             if kandidat:
+                # saran manual, biarin muter dikit
                 saran_lines = []
                 for k in kandidat:
                     for f in state.queue_asli[guild_id]:
-                        if item_key(f).strip == k:
+                        if item_key(f).strip() == k:
                             saran_lines.append(f"- {item_name(f)}")
                             break
                 saran = "\n".join(saran_lines)
@@ -141,9 +147,11 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def clear(ctx):
+        # ===== CLEAR QUEUE =====
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
-            if guild_id not in state.queues or not state.queues[guild_id]:
+            player.ensure_deques(guild_id)
+            if not state.queue_asli[guild_id] and not state.play_queue[guild_id]:
                 return await ctx.send("ngapain ongok gada antrian bjir")
             state.queue_asli[guild_id].clear()
             state.play_queue[guild_id].clear()

@@ -1,6 +1,7 @@
 import yt_dlp
 import asyncio
 
+# ===== YTDL OPTIONS =====
 YTDL_OPTIONS = {
     "format": "bestaudio/best",
     "quiet": True,
@@ -20,8 +21,11 @@ YTDL_OPTIONS = {
 
 ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
+# ===== AUDIO SOURCE =====
 async def get_audio_source(query: str):
     loop = asyncio.get_event_loop()
+
+    # ===== EXTRACT YOUTUBE =====
     def extract():
         try:
             info = ytdl.extract_info(query, download=False)

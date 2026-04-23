@@ -4,6 +4,8 @@ import time
 import traceback
 import discord
 import io
+import re
+from pathlib import Path
 from discord import FFmpegPCMAudio, PCMVolumeTransformer
 from discord.ext import commands
 from .. import config
@@ -15,23 +17,45 @@ from functools import partial
 from ..metadata import get_audio_metadata, get_cover
 
 
-def _cover_filename(cover: bytes) -> str:
+# ===== COVER EMBED =====
+def _nama_cover(cover: bytes) -> str:
     if cover.startswith(b"\x89PNG\r\n\x1a\n"):
         return "cover.png"
     return "cover.jpg"
 
 
-async def _send_play_embed(ctx, embed: discord.Embed, cover: bytes | None) -> None:
+# ===== PATH LANGSUNG =====
+def _path_langsung(nama_file: str) -> str | None:
+    rel_norm = str(nama_file).replace("\\", "/").strip().strip("/")
+    if not rel_norm:
+        return None
+
+    rel_path = Path(rel_norm)
+    if rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+
+    full_path = (config.music_root_dir() / rel_path).resolve()
+    root_path = config.music_root_dir().resolve()
+    try:
+        full_path.relative_to(root_path)
+    except ValueError:
+        return None
+    if full_path.is_file():
+        return rel_norm
+    return None
+
+# ===== KIRIM EMBED =====
+async def _kirim_embed(ctx, embed: discord.Embed, cover: bytes | None) -> None:
     if cover:
-        filename = _cover_filename(cover)
+        filename = _nama_cover(cover)
         file = discord.File(fp=io.BytesIO(cover), filename=filename)
         embed.set_thumbnail(url=f"attachment://{filename}")
         await ctx.send(embed=embed, file=file)
         return
-
     await ctx.send(embed=embed)
 
 
+# ===== COMMAND PLAYBACK =====
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def play(ctx, *, nama_file: str):
@@ -39,14 +63,18 @@ def setup(bot: commands.Bot) -> None:
         if not voice_client:
             await ctx.send("Botnya gada di dalem, pake !join")
             return
+        
         guild_id = ctx.guild.id
         player.cancel_idle_leave(guild_id)
 
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
             
-        file_rel_path = music_cache.cari_file_cocok(nama_file)
+        file_rel_path = _path_langsung(nama_file)
+        if not file_rel_path:
+            file_rel_path = music_cache.cari_file_cocok(nama_file)  # males one-liner, biar keliatan alurnya
 
+        # ===== CARI FILE LOKAL =====
         if not file_rel_path:
             hasil_saran = music_cache.cari_lagu(nama_file)
             if hasil_saran:
@@ -63,6 +91,7 @@ def setup(bot: commands.Bot) -> None:
 
         kunci = str(file_path_full)
 
+        # ===== METADATA & COVER =====
         if kunci in state.metadata_cache:
             metdat = state.metadata_cache[kunci]
         else:
@@ -93,6 +122,8 @@ def setup(bot: commands.Bot) -> None:
         album = metdat["album"]     
 
         is_playing_now = voice_client.is_playing() or voice_client.is_paused() or guild_id in state.current_playing
+
+        # ===== MASUK QUEUE =====
         if is_playing_now:
             state.queue_asli[guild_id].append(file_rel_path)
             state.play_queue[guild_id].append(file_rel_path)
@@ -101,16 +132,18 @@ def setup(bot: commands.Bot) -> None:
             embed = discord.Embed(title=title, description=f"oleh {artist}\nAlbum: {album}", color=0x41639b)                                                           
             embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True)   
             embed.add_field(name="Posisi", value=str(posisi), inline=True)
-            await _send_play_embed(ctx, embed, cover)
+            await _kirim_embed(ctx, embed, cover)
             return
 
         player.ensure_deques(guild_id)
          
         try:
+            # ===== PLAY FILE LOKAL =====
             state.current_playing[guild_id] = file_rel_path
             volume = state.tingkat_suara.get(guild_id, 0.5)
             source = player.build_audio(str(file_path_full), volume=volume)
             voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
+            player.catat_selera(guild_id, file_rel_path)
     
             embed = discord.Embed(
                 title=title,
@@ -118,7 +151,7 @@ def setup(bot: commands.Bot) -> None:
                 color=0x41639b
             )   
             embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True)
-            await _send_play_embed(ctx, embed, cover)
+            await _kirim_embed(ctx, embed, cover)
 
         except Exception as e:
             state.current_playing.pop(guild_id, None)
@@ -127,6 +160,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def yt(ctx, *, query: str):
+        # ===== PLAY YOUTUBE =====
         voice_client = ctx.voice_client
         if not voice_client:
             await ctx.send("Botnya gada di dalem, pake !join")
@@ -158,6 +192,7 @@ def setup(bot: commands.Bot) -> None:
         volume = state.tingkat_suara.get(guild_id, 0.5)
         source = player.build_audio(stream_url, volume=volume)
 
+        # ===== QUEUE YOUTUBE =====
         if voice_client.is_playing() or voice_client.is_paused():
             player.ensure_deques(guild_id)
             state.queue_asli[guild_id].append(yt_item)
@@ -175,6 +210,7 @@ def setup(bot: commands.Bot) -> None:
             await ctx.send(embed=embed)
             
         else:
+            # ===== PLAY YOUTUBE LANGSUNG =====
             voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
             state.current_playing[guild_id] = yt_item
             embed = discord.Embed(title=yt_item["title"], description = f"oleh {yt_item.get('uploader', 'unknown')}", color=0x12d3d3)
@@ -192,6 +228,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def search(ctx, *, query: str):
+        # ===== SEARCH LOKAL =====
         hasil = music_cache.cari_lagu(query)
         if not hasil:
             await ctx.send("Blom gw tambahin jir musiknya")
@@ -201,6 +238,7 @@ def setup(bot: commands.Bot) -> None:
             nama_file = os.path.basename(file_path)
             folder = os.path.dirname(file_path)
             album = folder.split("/")[-1] if "/" in folder else "Unknown Album"
+            nama_file = re.sub(r"^\d+\.\s*", "", nama_file)
             format_baris.append(f"{i+1}. {nama_file} [{album}]")
 
         state.last_search[ctx.author.id] = hasil[:20]
@@ -209,6 +247,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def pick(ctx, nomor: int):
+        # ===== PILIH HASIL SEARCH =====
         hasil = state.last_search.get(ctx.author.id)
 
         if not hasil:
@@ -223,6 +262,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def refresh(ctx):
+        # ===== REFRESH CACHE =====
         state.file_cache = music_cache.buat_music_cache()
         state.metadata_cache.clear()
         state.cover_cache.clear()
@@ -230,110 +270,8 @@ def setup(bot: commands.Bot) -> None:
         await ctx.send(f"cache nya lu update nih: {len(state.file_cache)} entries lu mbut")
 
     @bot.command()
-    async def open(ctx, nomor: int):
-            data = state.folder_terakhir.get(ctx.author.id)
-
-            if not data:
-                await ctx.send("lu belom buka library")
-                return
-            
-            if nomor < 1:
-                await ctx.send("nomor ngawur")
-                return
-            
-            folders = data["folders"]
-            files = data["files"]
-            base = data["base"]
-
-            if nomor <= len(folders):
-                nama_folder = folders[nomor - 1]
-                base_baru = base / nama_folder
-
-                folder_baru = []
-                file_baru= []
-
-                for item in os.listdir(base_baru):
-                    full = base_baru / item
-                    if full.is_dir():
-                        folder_baru.append(item)
-                    else:
-                        file_baru.append(item)
-
-                folder_baru.sort()
-                file_baru.sort()
-
-                state.folder_terakhir[ctx.author.id] = {"base": base_baru, "folders": folder_baru, "files": file_baru}
-                garis = []
-
-                for i, f in enumerate(folder_baru[:10]):
-                    garis.append(f"{i+1}. [📁] {f}")
-
-                offset = len(folder_baru[:10])
-                for i, f in enumerate(file_baru[:10]):
-                    garis.append(f"{i+1+offset}. [🎵] {f}")
-
-                teks = "\n".join(garis) if garis else "kosong jir"
-                await ctx.send(f"📁 {nama_folder}:\n{teks}\n\nketik: !open <nomor>")
-                return
-            
-            # ==PLAY FILE==
-            index_file = nomor - len(folders) - 1
-
-            if index_file < 0 or index_file >= len(files):
-                await ctx.send("nomor ngawur")
-                return
-            
-            file_path = data["base"] / files[index_file]
-
-            #relative path ke music_root
-            rel = file_path.relative_to(config.music_root_dir())
-
-            await ctx.invoke( bot.get_command("play"), nama_file=str(rel))
-
-    @bot.command()
-    async def back (ctx):
-            data = state.folder_terakhir.get(ctx.author.id)
-
-            if not data:
-                await ctx.send("lu blom buka apa-apa")
-                return
-            
-            base = data["base"]
-
-            if base == config.music_root_dir():
-                await ctx.send("udah di root")
-                return
-            
-            base_baru = base.parent
-            folders = []
-            files = []
-
-            for item in os.listdir(base_baru):
-                full = base_baru / item
-                if full.is_dir():
-                    folders.append(item)
-                else:
-                    files.append(item)
-
-            folders.sort()
-            files.sort()
-
-            state.folder_terakhir[ctx.author.id] = {"base": base_baru, "folders": folders, "files": files}
-
-            garis = []
-
-            for i, f in enumerate(folders[:10]):
-                garis.append(f"{i+1}. [📁] {f}")
-
-            offset = len(folders[:10])
-            for i, f in enumerate(files[:10]):
-                garis.append(f"{i+1+offset}. [🎵] {f}")
-            
-            teks = "\n".join(garis) if garis else "kosong jir"
-            await ctx.send(f"📂 balik:\n{teks}")
-
-    @bot.command()
     async def pause(ctx):
+        # ===== PAUSE =====
         voice_client = ctx.voice_client
         if voice_client and voice_client.is_playing():
             voice_client.pause()
@@ -343,6 +281,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def resume(ctx):
+        # ===== RESUME =====
         async with player.kunci_lagu(ctx.guild.id):
             voice_client = ctx.voice_client
             if voice_client and voice_client.is_paused():
@@ -353,6 +292,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def now(ctx):
+        # ===== NOW PLAYING =====
         async with player.kunci_lagu(ctx.guild.id):
             guild_id = ctx.guild.id
             if guild_id in state.current_playing:
@@ -367,6 +307,7 @@ def setup(bot: commands.Bot) -> None:
         
     @bot.command()
     async def next(ctx):
+        # ===== SKIP =====
         voice_client = ctx.voice_client
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
@@ -384,6 +325,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def volume(ctx, level: int):
+        # ===== VOLUME =====
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             if 0 <= level <= 100:
@@ -394,6 +336,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def repeat(ctx):
+        # ===== REPEAT =====
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             baru = not state.ulang_lagu.get(guild_id, False)

@@ -2,30 +2,40 @@ from __future__ import annotations
 import asyncio
 import traceback
 import discord
-import asyncio
-from . import player, state
 from discord.ext import commands
-from . import music_cache
-from . import player
-from . import state
-from . import runtime
-from . import config, music_cache, state
-from . metadata import get_audio_metadata, get_cover
+from . import config, music_cache, player, runtime, state
+from .metadata import get_audio_metadata, get_cover
+from .autoalir_store import load_autoalir_state
 
 
+# ===== EVENT SETUP =====
 def setup(bot: commands.Bot) -> None:
     @bot.event
     async def on_ready():
+        # ===== BOT READY =====
         runtime.set_bot_loop(asyncio.get_running_loop())
+
+        if not getattr(state, "autoalir_state_loaded", False):
+            load_autoalir_state()
+            state.autoalir_state_loaded = True
+            
+            print("selera:", state.selera_guild)
+            print("terakhir:", state.lagu_terakhir_lokal)
+            print("history:", state.history_autoalir)
+            print("history_mid:", state.history_mid_autoalir)
+            print("history_judul:", state.history_jdul_autoalir)
+
+
         print(f"Bot {bot.user} on aktif dinyalakan")
         music_cache.dapetin_cache_file()
 
-        if not getattr(state, "cache_preload_stated", False):
+        if not getattr(state, "cache_preload_started", False):
             state.cache_preload_started = True
             asyncio.create_task(preload_cache_async())
 
     @bot.event 
     async def on_command_error(ctx, error):
+        # ===== ERROR COMMAND =====
         embed = discord.Embed(title="Error", color=discord.Color.red())
         if isinstance(error, commands.CommandNotFound):
             return
@@ -48,58 +58,45 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.event
     async def on_voice_state_update(member, before, after):
+        # ===== VOICE UPDATE =====
         if not bot.user:
             return
+
         if before.channel == after.channel:
             return
         if member.id == bot.user.id:
             if before.channel and not after.channel:
                 guild_id = before.channel.guild.id
                 player.cancel_idle_leave(guild_id)
+
                 async with player.kunci_lagu(guild_id):
                     state.queue_asli.pop(guild_id, None)
                     state.play_queue.pop(guild_id, None)
                     state.current_playing.pop(guild_id, None)
-                    print(f"[CLEAN] bot kelaur paksa dari voice, {guild_id}")
-                    return
-                
-        vc = before.channel.guild.voice_client if before.channel else None
-        if not vc:
+
+                print(f"[CLEAN] bot keluar paksa dari voice, {guild_id}")
             return
-        guild_id = before.channel.guild.id
-        if member.bot and member.id == bot.user.id:
-            if before.channel and not after.channel:
-                player.cancel_idle_leave(guild_id)
-                task = state.gabut.pop(guild_id, None)
-                if task and not task.done():
-                    task.cancel()
-            return
-        ch = vc.channel
-        if ch is None:
+
+        guild = before.channel.guild if before.channel else after.channel.guild if after.channel else None
+        if not guild:
             return
         
-        perhitungan_orng = sum(1 for m in ch.members if not m.bot)
-        if perhitungan_orng == 0:
+        vc = guild.voice_client
+        if not vc or not vc.channel:
+            return
+
+        guild_id = guild.id
+        jumlah_orang = sum(1 for m in vc.channel.members if not m.bot)
+
+        if jumlah_orang == 0:
             player.schedule_leave(guild_id, vc)
         else:
-            task = state.gabut.pop(guild_id, None)
-            if task and not task.done():
-                task.cancel()
-
-        if member.id != bot.user.id:
-            return
-        if before.channel and not after.channel:
-            guild_id = before.channel.guild.id
             player.cancel_idle_leave(guild_id)
-            async with player.kunci_lagu(guild_id):
-                state.queue_asli.pop(guild_id, None)
-                state.play_queue.pop(guild_id, None)
-                state.current_playing.pop(guild_id, None)
     
-    cache = music_cache.buat_music_cache()
-
     async def preload_cache_async():
+        # ===== PRELOAD CACHE =====
         base = config.music_root_dir()
+        cache = music_cache.dapetin_cache_file()
         semua_path = []
 
         for v in cache.values():
