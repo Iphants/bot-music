@@ -98,11 +98,15 @@ Opsional:
 export DISCORD_TOKEN="YOUR_TOKEN"
 export MUSIC_DIR="$HOME/Music"
 python3 main.py
+```
+---
 
 ### Windows (PowerShell)
 
 ```bash
 $env:DISCORD_TOKEN="YOUR_TOKEN"
 $env:MUSIC_DIR="D:\Music"
-$env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"
 python main.py
+```
+```optional (kalau ffmpeg tidak ada di path)
+$env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"
