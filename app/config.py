@@ -157,7 +157,7 @@ def apply_config (data: dict) -> None:
         os.environ["DISCORD_TOKEN"] = str(token)
     if music_dir and not os.environ.get("MUSIC_DIR"):
         os.environ["MUSIC_DIR"]  = str(music_dir)
-    if ffmpeg_path and not os.environ.get*("FFMPEG_PATH"):
+    if ffmpeg_path and not os.environ.get("FFMPEG_PATH"):
         os.environ["FFMPEG_PATH"] = str(ffmpeg_path)   
 
 # intent bot yang emang dipake sekarang
