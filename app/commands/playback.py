@@ -17,14 +17,14 @@ from functools import partial
 from ..metadata import get_audio_metadata, get_cover
 
 
-# ===== COVER EMBED =====
+# nama file cover kecil doang, cuma buat attachment embed
 def _nama_cover(cover: bytes) -> str:
     if cover.startswith(b"\x89PNG\r\n\x1a\n"):
         return "cover.png"
     return "cover.jpg"
 
 
-# ===== PATH LANGSUNG =====
+# kalau user ngasih relative path bener, lewat sini dulu
 def _path_langsung(nama_file: str) -> str | None:
     rel_norm = str(nama_file).replace("\\", "/").strip().strip("/")
     if not rel_norm:
@@ -44,7 +44,7 @@ def _path_langsung(nama_file: str) -> str | None:
         return rel_norm
     return None
 
-# ===== KIRIM EMBED =====
+# helper kirim embed biar cover attachment ga diulang-ulang
 async def _kirim_embed(ctx, embed: discord.Embed, cover: bytes | None) -> None:
     if cover:
         filename = _nama_cover(cover)
@@ -55,7 +55,7 @@ async def _kirim_embed(ctx, embed: discord.Embed, cover: bytes | None) -> None:
     await ctx.send(embed=embed)
 
 
-# ===== COMMAND PLAYBACK =====
+# command-command muter lagu ngumpul di file ini
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def play(ctx, *, nama_file: str):
@@ -72,9 +72,9 @@ def setup(bot: commands.Bot) -> None:
             
         file_rel_path = _path_langsung(nama_file)
         if not file_rel_path:
-            file_rel_path = music_cache.cari_file_cocok(nama_file)  # males one-liner, biar keliatan alurnya
+            file_rel_path = music_cache.cari_file_cocok(nama_file)  # dibikin dua langkah biar gampang diliat pas nyangkut
 
-        # ===== CARI FILE LOKAL =====
+        # kalau file lokal ga ketemu, baru kasih saran
         if not file_rel_path:
             hasil_saran = music_cache.cari_lagu(nama_file)
             if hasil_saran:
@@ -91,7 +91,7 @@ def setup(bot: commands.Bot) -> None:
 
         kunci = str(file_path_full)
 
-        # ===== METADATA & COVER =====
+        # metadata sama cover dibaca sekali terus dicache
         if kunci in state.metadata_cache:
             metdat = state.metadata_cache[kunci]
         else:
@@ -123,7 +123,7 @@ def setup(bot: commands.Bot) -> None:
 
         is_playing_now = voice_client.is_playing() or voice_client.is_paused() or guild_id in state.current_playing
 
-        # ===== MASUK QUEUE =====
+        # kalau lagi ada yang muter, item baru masuk antrean
         if is_playing_now:
             state.queue_asli[guild_id].append(file_rel_path)
             state.play_queue[guild_id].append(file_rel_path)
@@ -138,7 +138,7 @@ def setup(bot: commands.Bot) -> None:
         player.ensure_deques(guild_id)
          
         try:
-            # ===== PLAY FILE LOKAL =====
+            # kalau bot lagi kosong, file lokal langsung puter
             state.current_playing[guild_id] = file_rel_path
             volume = state.tingkat_suara.get(guild_id, 0.5)
             source = player.build_audio(str(file_path_full), volume=volume)
@@ -160,7 +160,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def yt(ctx, *, query: str):
-        # ===== PLAY YOUTUBE =====
+        # cari youtube terus siapin item queue/now playing
         voice_client = ctx.voice_client
         if not voice_client:
             await ctx.send("Botnya gada di dalem, pake !join")
@@ -192,7 +192,7 @@ def setup(bot: commands.Bot) -> None:
         volume = state.tingkat_suara.get(guild_id, 0.5)
         source = player.build_audio(stream_url, volume=volume)
 
-        # ===== QUEUE YOUTUBE =====
+        # kalau lagi muter sesuatu, hasil yt diselipin ke queue
         if voice_client.is_playing() or voice_client.is_paused():
             player.ensure_deques(guild_id)
             state.queue_asli[guild_id].append(yt_item)
@@ -210,7 +210,7 @@ def setup(bot: commands.Bot) -> None:
             await ctx.send(embed=embed)
             
         else:
-            # ===== PLAY YOUTUBE LANGSUNG =====
+            # kalau kosong ya gas langsung
             voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
             state.current_playing[guild_id] = yt_item
             embed = discord.Embed(title=yt_item["title"], description = f"oleh {yt_item.get('uploader', 'unknown')}", color=0x12d3d3)
@@ -228,7 +228,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def search(ctx, *, query: str):
-        # ===== SEARCH LOKAL =====
+        # search nama lagu dari cache lokal
         hasil = music_cache.cari_lagu(query)
         if not hasil:
             await ctx.send("Blom gw tambahin jir musiknya")
@@ -247,7 +247,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def pick(ctx, nomor: int):
-        # ===== PILIH HASIL SEARCH =====
+        # ambil salah satu hasil search terus lempar ke play
         hasil = state.last_search.get(ctx.author.id)
 
         if not hasil:
@@ -262,7 +262,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def refresh(ctx):
-        # ===== REFRESH CACHE =====
+        # paksa bangun ulang cache file + metadata sampul
         state.file_cache = music_cache.buat_music_cache()
         state.metadata_cache.clear()
         state.cover_cache.clear()
@@ -271,7 +271,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def pause(ctx):
-        # ===== PAUSE =====
+        # nahan playback sementara
         voice_client = ctx.voice_client
         if voice_client and voice_client.is_playing():
             voice_client.pause()
@@ -281,7 +281,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def resume(ctx):
-        # ===== RESUME =====
+        # lanjut lagi kalau tadi sempet dipause
         async with player.kunci_lagu(ctx.guild.id):
             voice_client = ctx.voice_client
             if voice_client and voice_client.is_paused():
@@ -292,7 +292,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def now(ctx):
-        # ===== NOW PLAYING =====
+        # ngintip yang lagi muter apa sekarang
         async with player.kunci_lagu(ctx.guild.id):
             guild_id = ctx.guild.id
             if guild_id in state.current_playing:
@@ -307,7 +307,7 @@ def setup(bot: commands.Bot) -> None:
         
     @bot.command()
     async def next(ctx):
-        # ===== SKIP =====
+        # paksa loncat ke item berikutnya
         voice_client = ctx.voice_client
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
@@ -325,7 +325,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def volume(ctx, level: int):
-        # ===== VOLUME =====
+        # volume disimpen per guild
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             if 0 <= level <= 100:
@@ -336,7 +336,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def repeat(ctx):
-        # ===== REPEAT =====
+        # toggle repeat lagu sekarang
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             baru = not state.ulang_lagu.get(guild_id, False)

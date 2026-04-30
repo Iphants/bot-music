@@ -8,11 +8,11 @@ from .. import player
 from .. import state
 
 
-# ===== COMMAND QUEUE =====
+# command yang ngurus antrian doang
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def queue(ctx):
-        # ===== LIHAT QUEUE =====
+        # nampilin queue asli yang keliatan user
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
@@ -36,7 +36,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def shuffle(ctx):
-        # ===== SHUFFLE QUEUE =====
+        # acak queue play tanpa ngerusak urutan queue asli
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
@@ -58,7 +58,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def remove(ctx, *, target):
-        # ===== REMOVE QUEUE =====
+        # hapus item queue, bisa by angka atau nama
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)
@@ -134,7 +134,7 @@ def setup(bot: commands.Bot) -> None:
             kandidat = difflib.get_close_matches(target_, semua_nama, n=5, cutoff=0.3)
 
             if kandidat:
-                # saran manual, biarin muter dikit
+                # cari saran manual, pendek aja jadi gapapa muter dua loop
                 saran_lines = []
                 for k in kandidat:
                     for f in state.queue_asli[guild_id]:
@@ -147,7 +147,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def clear(ctx):
-        # ===== CLEAR QUEUE =====
+        # ngosongin dua queue sekalian
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)

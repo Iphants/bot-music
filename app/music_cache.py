@@ -5,7 +5,7 @@ import time
 from . import config
 from . import state
 
-# ===== BUILD CACHE =====
+# scan folder musik terus bikin map buat lookup cepet
 def buat_music_cache():
     music_files = {}
     ext_ok = (".mp3", ".wav", ".flac", ".m4a")
@@ -28,7 +28,7 @@ def buat_music_cache():
         print(f"error ngebangun cache {e}")
         return {}
 
-# ===== GET CACHE =====
+# ambil cache, kalau basi ya bangun lagi
 def dapetin_cache_file():
     sekarang = time.time()
     if not state.file_cache or (sekarang - state.cache_timestamp > config.CACHE_DURATION_SECONDS):
@@ -36,7 +36,7 @@ def dapetin_cache_file():
         state.cache_timestamp = sekarang
     return state.file_cache
 
-# ===== SEARCH LAGU =====
+# search lokal, mulai dari exact terus turun ke fuzzy
 def cari_lagu(query):
     try:
         semua_file_cache = dapetin_cache_file()
@@ -56,7 +56,7 @@ def cari_lagu(query):
 
         for key in hasil_fuzzy:
             semua_hasil.extend(semua_file_cache.get(key, []))
-        seen = []  # kecil aja datanya, ga usah sok set
+        seen = []  # datanya dikit, list biasa juga cukup
         out = []
 
         for item in semua_hasil:
@@ -71,7 +71,7 @@ def cari_lagu(query):
         print(f"error jir ngebaca direktori nya: {e}")
         return []
 
-# ===== MATCH FILE =====
+# cari satu file yang paling cocok buat langsung diputer
 def cari_file_cocok(nama_file):
     try:
         semua_file_cache = dapetin_cache_file()

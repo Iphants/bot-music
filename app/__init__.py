@@ -1,6 +1,6 @@
 """
-Bot package.
+isi package doang.
 
-Kept intentionally minimal; modules are wired from main.py.
+yang nyambungin modul-modulnya main.py, jadi sini emang dibiarin tipis.
 """
-# sengaja kosong, biar import package-nya aja yang hidup
+# file ini emang cuma biar folder app kebaca package

@@ -9,7 +9,7 @@ AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".m4a")
 PER_PAGE = 25
 ROOT = config.music_root_dir().resolve()
 
-# ===== SCAN LIBRARY =====
+# scan isi folder sekarang, pisahin folder sama file audio
 def _scan_library_dir(base):
     base = base.resolve()
     folders = []
@@ -25,11 +25,11 @@ def _scan_library_dir(base):
     files.sort()
     return folders, files
 
-# ===== SIMPAN FOLDER =====
+# nyimpen posisi folder terakhir user
 def _set_last_folder(author_id, base, folders, files, page=0):
     state.folder_terakhir[author_id] = {"base": base.resolve(), "folders": folders, "files": files, "page": page, }
 
-# ===== HISTORY FOLDER =====
+# history folder biar tombol back masih tau jalan pulangnya
 def push_history(author_id, base):
     history = state.folder_history.setdefault(author_id, [])
     base = base.resolve()
@@ -44,7 +44,7 @@ def pop_history(author_id):
         return None
     return history.pop()
 
-# ===== PAGINASI =====
+# urusan motong item per halaman ada di sini
 def _all_items(folders, files):
     return [("folder", f) for f in folders] + [("file", f) for f in files]
 
@@ -52,13 +52,13 @@ def page_items(folders, files, page = 0, per_page=PER_PAGE):
     items = _all_items(folders, files)
     total = len(items)
     max_page = max(1, (total - 1) // per_page + 1)
-    page = max (0, min(page, max_page - 1))  # clamp manual aja
+    page = max (0, min(page, max_page - 1))  # dicek biar page ga nyasar
     start = page * per_page
     end = start + per_page
     visible_items = items[start:end]
     return visible_items, total, max_page, start, page
 
-# ===== EMBED LIBRARY =====
+# ngebentuk embed list library yang keliatan sekarang
 def build_library_embed(base, folders, files, page=0, per_page=PER_PAGE):
     base = base.resolve()
     visible_items, total, max_page, start, page = page_items(folders, files, page=page, per_page=per_page)
@@ -79,7 +79,7 @@ def build_library_embed(base, folders, files, page=0, per_page=PER_PAGE):
     embed.set_footer(text=f"Halaman {page + 1}/{max_page}")
     return embed
 
-# ===== VIEW LIBRARY =====
+# view discord buat klik-klik folder sama pindah halaman
 class LibraryView(ui.View):
     def __init__(self, ctx, base, folders, files, page=0, per_page=PER_PAGE):
         super().__init__(timeout=120)
@@ -126,7 +126,7 @@ class LibraryView(ui.View):
             options = []
             for idx, (kind, name) in enumerate(self.visible_items):
                 label = f"{start + idx + 1}. {name}"
-                # discord cuma mau 100 char, yaudah potong aja
+                # discord rewel soal panjang label, jadi dipotong aja
                 options.append(
                     discord.SelectOption(
                         label=label[:100],
@@ -173,7 +173,7 @@ class LibraryView(ui.View):
         await self.ctx.invoke(self.ctx.bot.get_command("play"), nama_file=str(rel))
 
 
-# ===== BUTTON BACK =====
+# tombol balik folder
 class LibraryBackButton(ui.Button):
     def __init__(self, disabled=False):
         super().__init__(label="Back", style=discord.ButtonStyle.secondary, disabled=disabled,)
@@ -202,7 +202,7 @@ class LibraryBackButton(ui.Button):
         view.stop()
         new_view.message = interaction.message
 
-# ===== BUTTON PREV =====
+# tombol geser halaman ke kiri
 class LibraryPrevButton(ui.Button):
     def __init__(self, disabled=False):
         super().__init__(
@@ -225,7 +225,7 @@ class LibraryPrevButton(ui.Button):
         view.stop()
         new_view.message = interaction.message
 
-# ===== BUTTON NEXT =====
+# tombol geser halaman ke kanan
 class LibraryNextButton(ui.Button):
     def __init__(self, disabled=False):
         super().__init__(
@@ -245,11 +245,11 @@ class LibraryNextButton(ui.Button):
         view.stop()
         new_view.message = interaction.message
 
-# ===== COMMAND LIBRARY =====
+# command yang kepake buat buka-buka library
 def setup(bot: commands.Bot):
     @bot.command()
     async def library(ctx, page: int = 1):
-        # ===== BUKA LIBRARY =====
+        # mulai dari root terus tampilin halaman yang diminta
         base = ROOT
         folders, files = _scan_library_dir(base)
         _set_last_folder(ctx.author.id, base, folders, files)
@@ -267,7 +267,7 @@ def setup(bot: commands.Bot):
     
     @bot.command()
     async def open(ctx, nomor: int):
-        # ===== OPEN ITEM =====
+        # buka item yang lagi keliatan di halaman sekarang
         data = state.folder_terakhir.get(ctx.author.id)
 
         if not data:
@@ -316,7 +316,7 @@ def setup(bot: commands.Bot):
 
     @bot.command()
     async def back (ctx):
-        # ===== BACK FOLDER =====
+        # balik ke folder sebelumnya dari history
         data = state.folder_terakhir.get(ctx.author.id)
 
         if not data:

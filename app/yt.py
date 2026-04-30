@@ -1,7 +1,7 @@
 import yt_dlp
 import asyncio
 
-# ===== YTDL OPTIONS =====
+# setting yt-dlp numpuk di sini
 YTDL_OPTIONS = {
     "format": "bestaudio/best",
     "quiet": True,
@@ -21,11 +21,11 @@ YTDL_OPTIONS = {
 
 ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
-# ===== AUDIO SOURCE =====
+# ambil info audio dari yt di sini
 async def get_audio_source(query: str):
     loop = asyncio.get_event_loop()
 
-    # ===== EXTRACT YOUTUBE =====
+    # kerja beratnya dilempar ke thread biar loop bot ga kesedak
     def extract():
         try:
             info = ytdl.extract_info(query, download=False)

@@ -8,11 +8,11 @@ from .metadata import get_audio_metadata, get_cover
 from .autoalir_store import load_autoalir_state
 
 
-# ===== EVENT SETUP =====
+# semua event bot dikaitin dari sini
 def setup(bot: commands.Bot) -> None:
     @bot.event
     async def on_ready():
-        # ===== BOT READY =====
+        # pas bot udah connect penuh, baru aman ngeload yang lain
         runtime.set_bot_loop(asyncio.get_running_loop())
 
         if not getattr(state, "autoalir_state_loaded", False):
@@ -35,7 +35,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.event 
     async def on_command_error(ctx, error):
-        # ===== ERROR COMMAND =====
+        # error command ditampung sini biar ga muncrat mentah ke user
         embed = discord.Embed(title="Error", color=discord.Color.red())
         if isinstance(error, commands.CommandNotFound):
             return
@@ -58,7 +58,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.event
     async def on_voice_state_update(member, before, after):
-        # ===== VOICE UPDATE =====
+        # ngurus masuk-keluar voice sama cleanup kalau bot cabut
         if not bot.user:
             return
 
@@ -94,7 +94,7 @@ def setup(bot: commands.Bot) -> None:
             player.cancel_idle_leave(guild_id)
     
     async def preload_cache_async():
-        # ===== PRELOAD CACHE =====
+        # preload metadata/cover pelan-pelan biar command awal ga berat
         base = config.music_root_dir()
         cache = music_cache.dapetin_cache_file()
         semua_path = []

@@ -4,11 +4,11 @@ from .. import player, state
 import discord
 import asyncio
 
-# ===== COMMAND BASIC =====
+# command basic dikumpulin di file ini
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def help(ctx, command_name: str = None):
-        # ===== HELP DATA =====
+        # isi help ditaro map biar gampang dipanggil ulang
         data_tolong = {
             "join": {
                 "deskripsi": "bot masuk ke voice lu berada",
@@ -140,7 +140,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def autoalir(ctx, mode: str = None):
-        # ===== AUTOALIR MODE =====
+        # toggle autoalir per guild lewat command ini
         guild_id = ctx.guild.id
 
         if mode is None:
@@ -164,7 +164,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def join(ctx):
-        # ===== JOIN VOICE =====
+        # join ke voice user, atau pindah kalau beda channel
         if not ctx.author.voice:
             await ctx.send("Masuk voice dulu")
             return
@@ -205,7 +205,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def leave(ctx):
-        # ===== LEAVE VOICE =====
+        # keluar voice sambil beresin state guild
         guild_id = ctx.guild.id
 
         async with player.kunci_lagu(guild_id):

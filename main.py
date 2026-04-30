@@ -2,11 +2,13 @@ from __future__ import annotations
 import asyncio
 from app import config, events, runtime
 from app.bot_instance import create_bot
-from app.commands import basic, playback, queue_cmds, library_kmnd
 
-# ===== RUN BOT =====
+# start botnya dari sini
 async def _run_bot() -> None:
-    bot = create_bot()  # satu bot aja dulu
+    config.setup_inter()
+    
+    from app.commands import basic, playback, queue_cmds, library_kmnd
+    bot = create_bot()  # bikin botnya dulu, baru tempelin yang lain
     runtime.set_bot_loop(asyncio.get_running_loop())
     events.setup(bot)
     basic.setup(bot)
@@ -18,7 +20,7 @@ async def _run_bot() -> None:
     finally:
         await bot.close()
 
-# ===== ENTRYPOINT =====
+# pas file ini dijalanin langsung, lempar ke runner
 def main() -> None:
     asyncio.run(_run_bot())
 

@@ -3,7 +3,7 @@ from mutagen.flac import FLAC
 from mutagen import File
 
 
-# ===== NORMALISASI TAG =====
+# rapihin isi tag jadi string biasa dulu
 def _tag_val(value):
     if not value:
         return None
@@ -19,7 +19,7 @@ def _tag_val(value):
     return text or None
 
 
-# ===== AMBIL TAG =====
+# nyoba beberapa nama tag sampe dapet isi
 def _tag_ambil(tags, *nama_tags):
     if not tags:
         return None
@@ -37,7 +37,7 @@ def _tag_ambil(tags, *nama_tags):
                 return value
     return None
 
-# ===== METADATA AUDIO =====
+# metadata dasar lagu diambil di sini
 def get_audio_metadata(file_path):
     audio = File(file_path)
 
@@ -51,7 +51,7 @@ def get_audio_metadata(file_path):
 
     raw_tags = audio.tags or {}
 
-    # ini sengaja lokal aja, kecil dan cuma kepake di sini
+    # helper kecil doang, cuma kepake buat fungsi ini
     def ambil(easy_names, raw_names):
         return (
             _tag_ambil(easy_tags, *easy_names)
@@ -69,7 +69,7 @@ def get_audio_metadata(file_path):
         "duration": int(audio.info.length) if audio.info and audio.info.length else 0
     }
 
-# ===== COVER AUDIO =====
+# nyari cover art kalau file punya
 def get_cover(file_path):
     try:
         audio = File(file_path)

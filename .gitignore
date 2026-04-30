@@ -1,5 +1,8 @@
 __pycache__/
-# *.pyc
+*.pyc
 .env
 app/data/*.json
 !app/data/.gitkeep
+guard
+guard.exe
+.vscode/

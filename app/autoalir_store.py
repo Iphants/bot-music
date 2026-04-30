@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 STATE_FILE = DATA_DIR / "autoalir_state.json"
 
-# ===== KEY GUILD =====
+# key json dibalikin lagi ke int guild id
 def keys_int(d: dict) -> dict:
     hasil = {}
     for k, v in d.items():
@@ -21,11 +21,11 @@ def keys_int(d: dict) -> dict:
             continue
     return hasil
 
-# ===== SAVE AUTOALIR =====
+# dump state autoalir ke file json
 def save_autoalir_state() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # TODO: kalau state makin rame, ini pecah aja nanti. sekarang biarin kebaca mentah.
+    # ini masih digebleg jadi satu map gede, nanti pecah kalau udah nyebelin
     data = {"selera_guild": {str(guild_id): lagu_map for guild_id, lagu_map in state.selera_guild.items()}, "lagu_terakhir_lokal": {str(guild_id): lagu for guild_id, lagu in state.lagu_terakhir_lokal.items()}, "history_autoalir": { str(guild_id): list(dq) for guild_id, dq in state.history_autoalir.items()}, "history_mid_autoalir": { str(guild_id): list(dq) for guild_id, dq in state.history_mid_autoalir.items()}, "history_jdul_autoalir": { str(guild_id): list(dq) for guild_id, dq in state.history_jdul_autoalir.items()}, }
 
     temp_file = STATE_FILE.with_suffix(".tmp")
@@ -34,7 +34,7 @@ def save_autoalir_state() -> None:
     
     temp_file.replace(STATE_FILE)
 
-# ===== LOAD AUTOALIR =====
+# load balik state autoalir dari file kalau ada
 def load_autoalir_state() -> None:
     if not STATE_FILE.exists():
         return

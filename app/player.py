@@ -14,7 +14,7 @@ from . import state
 from .yt import get_audio_source
 from .autoalir_store import save_autoalir_state
 
-# ===== KUNCI & QUEUE =====
+# helper kecil buat ngunci guild dan beresin queue
 def kunci_lagu(guild_id):
     if guild_id not in state.kunci_guild:
         state.kunci_guild[guild_id] = asyncio.Lock()
@@ -48,7 +48,7 @@ def debug_autoalir(*args):
     if getattr(state, "debug_autoalir", False):
         print("[AUTOALIR DEBUG]", *args)
 
-# ===== AUTOALIR MEMORY =====
+# batas history autoalir yang agak panjang
 RIWAYAT_AUTOALIR_MID = 18
 
 def catat_selera(guild_id, item):
@@ -72,7 +72,7 @@ def catat_selera(guild_id, item):
     debug_autoalir(f"catat_selera guild={guild_id}", f"item={item}", f"judul_dasar={judul}", f"jumlah_putar={state.selera_guild[guild_id][item]}", f"riwayat_file={list(state.history_autoalir[guild_id])}", f"riwayat_mid={list(state.history_mid_autoalir[guild_id])}", f"riwayat_judul={list(state.history_jdul_autoalir[guild_id])}", )
     save_autoalir_state()
 
-# ===== STRUKTUR LAGU =====
+# pecah rel path lagu biar gampang dibandingin folder/artist/album
 def pecah_struktur_lagu(rel_path: str):
     rel_norm = str(rel_path).replace("\\", "/").strip("/")
     parts = Path(rel_norm).parts
@@ -97,7 +97,7 @@ def pecah_struktur_lagu(rel_path: str):
     debug_autoalir(f"pecah_struktur: {rel_norm} -> {hasil}")
     return hasil
 
-# ===== TIPE TRACK =====
+# nebak ini lagu utama, ost, atau cuma varian file
 def tipe_lagu(rel_path: str, info=None):
     info = info or pecah_struktur_lagu(rel_path)
     path_txt = str(rel_path).replace("\\", "/").lower()
@@ -114,7 +114,7 @@ def tipe_lagu(rel_path: str, info=None):
         return "varian"
     return "utama"
 
-# ===== DOMINASI RIWAYAT =====
+# ngitung kecenderungan history sekarang numpuk ke parent/artist mana
 def dom_auto(guild_id):
     hist = list(state.history_mid_autoalir.get(guild_id, []))[-RIWAYAT_AUTOALIR_MID:]
     h_parent = Counter()
@@ -132,7 +132,7 @@ def dom_auto(guild_id):
 
     return {"total": len(hist), "parent": h_parent, "artist": h_artist, }
 
-# ===== PENALTI SKOR =====
+# kalau history udah kepenuhan, skor ditahan dikit
 def penalti_dom(info, dominasi, skor, rincian):
     if dominasi["total"] < 10:
         return skor
@@ -172,7 +172,7 @@ def penalti_tipe(tipe_kandidat, tipe_terakhir, tahap, skor, rincian):
         rincian.append("bonus_balik_lagu_utama=8")
     return skor
 
-# ===== PILIH AUTOALIR =====
+# inti autoalirnya, nyari kandidat lanjut yang masih nyambung
 def pilih_lagu_auto(guild_id):
     terakhir = state.lagu_terakhir_lokal.get(guild_id)
     if not terakhir:
@@ -201,7 +201,7 @@ def pilih_lagu_auto(guild_id):
     debug_autoalir(f"antrian sekarang = {list(antrian_sekarang)}")
     debug_autoalir(f"tipe_terakhir = {tipe_terakhir}", f"dominasi_parent = {dominasi['parent'].most_common(3)}", f"dominasi_artist = {dominasi['artist'].most_common(3)}", )
 
-    # ===== AMBIL CACHE =====
+    # ngumpulin semua path unik dari cache biar ga muter key doang
     cache = state.file_cache if state.file_cache else {}
     semua_rel = []
     for daftar in cache.values():
@@ -214,7 +214,7 @@ def pilih_lagu_auto(guild_id):
 
     kandidat = []
 
-    # ===== LOOP UTAMA =====
+    # putaran utama, ini yang paling ketat filternya
     for rel_path in semua_rel:
         if rel_path == terakhir:
             continue
@@ -246,7 +246,7 @@ def pilih_lagu_auto(guild_id):
             skor += bonus_selera
             rincian.append(f"bonus_selera={bonus_selera}")
 
-        # ===== VARIAN FILE =====
+        # cek varian file biar ga kebanyakan muter versi mirip
         nama = info["nama_file"]
         nama_terakhir = info_terakhir["nama_file"]
         tipe_kandidat = tipe_lagu(rel_path, info)
@@ -264,7 +264,7 @@ def pilih_lagu_auto(guild_id):
             skor -= 12
             rincian.append("penalti_instrumental=-12")
 
-        # Penalti keluarga judul.
+        # kalau judul dasarnya barusan muter, sengaja diteken
         if judul_kandidat == judul_terakhir:
             skor -= 90
             rincian.append("penalti_keluarga_judul_terakhir=-90")
@@ -283,7 +283,7 @@ def pilih_lagu_auto(guild_id):
             f"kandidat utama: {rel_path} | judul={judul_kandidat} | tipe={tipe_kandidat} | skor={skor} | rincian={rincian}"
         )
 
-    # ===== FALLBACK 1 =====
+    # kalau gagal total, longgarin dikit tapi masih nyari yang searah
     if not kandidat:
         debug_autoalir("masuk fallback 1")
 
@@ -334,7 +334,7 @@ def pilih_lagu_auto(guild_id):
                 f"kandidat fallback1: {rel_path} | judul={judul_kandidat} | tipe={tipe_kandidat} | skor={skor} | rincian={rincian}"
             )
 
-    # ===== FALLBACK 2 =====
+    # mentok lagi, ambil apa aja asal ga terlalu deket history/antrian
     if not kandidat:
         debug_autoalir("masuk fallback 2")
 
@@ -375,7 +375,7 @@ def pilih_lagu_auto(guild_id):
             f"kandidat fallback2: {rel_path} | judul={judul_kandidat} | tipe={tipe_kandidat} | skor={skor} | rincian={rincian}"
         )
 
-    # ===== PILIH FINAL =====
+    # habis itu ambil dari kandidat atas, tapi tetep berbobot
     if not kandidat:
         debug_autoalir("gagal total: tidak ada kandidat")
         return None
@@ -394,7 +394,7 @@ def pilih_lagu_auto(guild_id):
     debug_autoalir(f"pilihan akhir = {pilihan}")
     return pilihan
 
-# ===== NORMALISASI JUDUL =====
+# nyopot embel-embel judul biar gampang dibandingin
 kata_varian = {"game size", "tv size", "anime size", "movie size", "short ver", "short version", "short size", "pv size", "off vocal", "instrumental", "acoustic", "live", "remix",  "extended mix", "speed up", "sped up", "slowed down", "stripped", "a cappela", "cover", "ver.", "version", "demo", "edit",}
 
 def judul_dasar (rel_path: str) -> str :
@@ -419,7 +419,7 @@ def judul_dasar (rel_path: str) -> str :
         return Path(str(rel_path)).stem.lower().strip()
     return nama
 
-# ===== AUDIO SOURCE =====
+# bungkus ffmpeg + volume di satu tempat
 def build_audio(source, volume=0.5):
     before_options = ""
     options = "-vn -loglevel panic"
@@ -428,7 +428,7 @@ def build_audio(source, volume=0.5):
     src = FFmpegPCMAudio(source=source, executable=config.ffmpeg_executable(), before_options=before_options, options=options)
     return PCMVolumeTransformer(src, volume=volume)
 
-# ===== IDLE VOICE =====
+# ngurus timer keluar voice kalau bot nganggur
 def cancel_idle_leave(guild_id):
     task = state.gabut.pop(guild_id, None)
     if task:
@@ -460,7 +460,7 @@ def schedule_leave(guild_id, voice_client, delay = 15 * 60):
 
     state.gabut[guild_id] = asyncio.create_task(_job())
 
-# ===== REPLAY =====
+# buat repeat lagu yang sama tanpa lewat queue
 async def replay_c(guild_id, voice_client):
     async with kunci_lagu(guild_id):
         lagu = state.current_playing.get(guild_id)
@@ -475,7 +475,7 @@ async def replay_c(guild_id, voice_client):
 
         voice_client.play(source, after=partial(after_play, guild_id, voice_client))
 
-# ===== SETELAH PLAY =====
+# callback abis lagu selesai / stream berhenti
 def after_play(guild_id, voice_client, error):
     if error:
         print(f"[ERROR STREAM] guild {guild_id} error saat play: {error}")
@@ -496,7 +496,7 @@ def after_play(guild_id, voice_client, error):
         print (f"after_play handler error {e}")
         state.current_playing.pop(guild_id, None)            
 
-# ===== PLAY NEXT =====
+# ambil item berikutnya dari queue terus coba puter
 async def play_next(guild_id, voice_client):
     if not voice_client or not voice_client.is_connected():  
         state.current_playing.pop(guild_id, None)  
@@ -505,7 +505,7 @@ async def play_next(guild_id, voice_client):
     async with kunci_lagu(guild_id):
         ensure_deques(guild_id)
 
-        # ===== AUTOALIR SAAT QUEUE KOSONG =====
+        # kalau queue habis tapi autoalir nyala, isi satu lagu dulu
         if not state.play_queue.get(guild_id) or len(state.play_queue[guild_id]) == 0:
             if state.mode_autoalir.get(guild_id, False):
                 debug_autoalir(f"queue kosong dan autoalir nyala untuk guild={guild_id}")
@@ -527,14 +527,14 @@ async def play_next(guild_id, voice_client):
         while state.play_queue[guild_id]:
             item = state.play_queue[guild_id].popleft()
 
-            # ===== HAPUS DARI QUEUE ASLI =====
+            # bersihin juga dari queue tampilan biar dua-duanya sinkron
             try:
                 if item in state.queue_asli.get(guild_id, []):
                     state.queue_asli[guild_id].remove(item)
             except ValueError:
                 pass
             try:
-                # ===== PLAY YOUTUBE =====
+                # kalau item youtube, refresh stream url terus play
                 if isinstance(item, dict):
                     title = item["title"]
                     state.current_playing[guild_id] = item
@@ -548,7 +548,7 @@ async def play_next(guild_id, voice_client):
                     print(f"Now playing YT: {title}")
                     return
 
-                # ===== PLAY FILE LOKAL =====
+                # kalau file lokal tinggal tembak ke ffmpeg
                 file_rel_path = item
                 path_full = config.music_root_dir() / file_rel_path
                 if not path_full.exists():

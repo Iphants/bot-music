@@ -1,9 +1,9 @@
 """
-Command modules.
+isi folder command doang.
 
-Each module exposes setup(bot) to register commands.
+tiap modul punya setup(bot), terus dipanggil manual dari main.py.
 """
 
-# command ditarik manual dari main.py, jadi ga auto-discover dulu
+# sengaja belum auto-discover, biar kelihatan modul mana yang dipasang
 
  
