@@ -322,13 +322,13 @@ Command | Fungsi
 | --- | --- |
 `!yt <judul>` | Cari dan putar lagu dari YouTube
 
-###Autoalir
+### Autoalir
 Command | Fungsi
 | --- | --- |
 `!autoalir on` | Nyalakan autoalir
 `!autoalir off` | Matikan autoalir
 
-###Bantuan
+### Bantuan
 Command | Fungsi
 | --- | --- |
 `!help` | Tampilkan daftar command
