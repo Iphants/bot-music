@@ -3,6 +3,7 @@ import asyncio
 from typing import Optional
 
 _BOT_LOOP: Optional[asyncio.AbstractEventLoop] = None
+_BOT = None
 
 # simpen loop bot biar callback thread lain bisa manggil coroutine
 def set_bot_loop(loop: asyncio.AbstractEventLoop) -> None:
@@ -15,3 +16,10 @@ def get_bot_loop() -> asyncio.AbstractEventLoop:
         # kalau nyangkut sini biasanya bot keburu manggil callback sebelum loop diset
         raise RuntimeError("Bot loop not set. Call set_bot_loop(bot.loop) during startup.")
     return _BOT_LOOP
+
+def set_bot(bot) -> None:
+    global _BOT
+    _BOT = bot
+
+def get_bot():
+    return _BOT

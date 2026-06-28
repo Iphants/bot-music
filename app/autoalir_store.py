@@ -58,3 +58,60 @@ def load_autoalir_state() -> None:
     state.history_jdul_autoalir = {guild_id: deque([item for item in items if isinstance(item, str)],maxlen=MAX_HISTORY_JDUL,) for guild_id, items in history_jdul_raw.items() if isinstance(items, list)}
 
     print("[AUTOALIR STORE] state autoalir berhasil diload")
+
+# queue persistence
+
+QUEUE_FILE = DATA_DIR/"queue_state.json"
+
+def _load_queue_data(file_path):
+    if not file_path.exists():
+        return {}
+    try:
+        with file_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        print("[QUEUE STORE] gagal load JSON, file rusak/gak valid")
+        return {}
+
+def save_queue(guild_id) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    data = _load_queue_data(QUEUE_FILE)
+
+    data[str(guild_id)] = {
+        "queue_asli": list(state.queue_asli.get(guild_id, [])),
+        "play_queue": list(state.play_queue.get(guild_id, [])),
+        "current_playing": state.current_playing.get(guild_id),
+    }
+
+    temp_file = QUEUE_FILE.with_suffix(".tmp")
+    with temp_file.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    temp_file.replace(QUEUE_FILE)
+
+def load_queue() -> None:
+    data = _load_queue_data(QUEUE_FILE)
+    if not data:
+        return
+    
+    parsed_data = keys_int(data)
+    for guild_id, entri in parsed_data.items():
+        if not isinstance(entri, dict):
+            continue
+        q_asli = entri.get("queue_asli", [])
+        q_play = entri.get("play_queue", [])
+        if not isinstance(q_asli, list):
+            q_asli = []
+        if not isinstance(q_play, list):
+            q_play = []
+
+        dq_asli = deque(q_asli)
+        dq_play = deque(q_play)
+        current = entri.get("current_playing")
+        if current:
+            dq_play.appendleft(current)
+            dq_asli.appendleft(current)
+
+        state.queue_asli[guild_id] = dq_asli
+        state.play_queue[guild_id] = dq_play    
+    print("[QUEUE STORE] state queue berhasil diload")

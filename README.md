@@ -16,6 +16,9 @@ Fokus utamanya memang file lokal, tapi ada juga playback YouTube, library browse
 - Simpan state autoalir ke file lokal
 - Volume, repeat, shuffle, remove, clear queue
 - Auto leave kalau voice kosong / idle
+- Queue tahan restart (auto-resume saat join)
+- Dashboard now playing yang di-edit, bukan spam pesan
+- Cover album lewat hosting URL (Media Tab tetap bersih)
 
 ## Cara kerja singkat
 
@@ -32,7 +35,21 @@ Alurnya begini:
 
 ## Autoalir
 
-Autoalir sekarang nyimpen beberapa hal:
+Autoalir sekarang baca struktur folder secara depth-aware, jadi cocok buat
+koleksi yang campur antara artist biasa dan franchise berlapis.
+
+Tiap lagu dipecah jadi:
+
+- `top` — folder paling luar (artist atau franchise)
+- `unit` — band / sub-grup di dalam franchise (kalau ada)
+- `album` — folder album, otomatis lompat kalau induknya folder disc
+- `disc` — folder `CD 1`, `Disc 2`, dst
+
+Skornya berlapis: folder album persis paling kuat, lalu album, lalu unit, lalu
+franchise (lemah). Rem dominasi juga digeser ke level unit, jadi pindah
+antar-unit dalam satu franchise besar nggak ikut kena hukum borongan.
+
+Autoalir juga nyimpen beberapa hal:
 
 - lagu terakhir per guild
 - history file yang baru diputar
@@ -45,6 +62,77 @@ State ini disimpan ke:
 - `app/data/autoalir_state.json`
 
 File itu cuma buat state lokal, jadi memang tidak ikut ke-push ke Git.
+
+## Queue persistence
+
+Queue sekarang nggak ilang waktu bot restart / crash.
+
+Yang disimpen per guild:
+
+- `queue_asli` dan `play_queue`
+- lagu yang lagi diputar (`current_playing`)
+- item lokal maupun item YouTube
+
+Cara kerjanya:
+
+- Queue disimpen di titik-titik transisi yang bermakna: lagu ganti, `!play`,
+  `!yt`, `!remove`, `!clear`, `!shuffle`, dan sebelum bot keluar voice.
+- Pas bot ready, state queue diload lagi.
+- Lagu yang tadi diputar disuntik ke depan queue, jadi pas `!join` lagi bot
+  langsung lanjut dari situ (auto-resume).
+
+State disimpan ke:
+
+- `app/data/queue_state.json`
+
+Kalau file rusak atau nggak valid, bot nggak crash. State queue cuma dilewati.
+
+## Dashboard now playing
+
+`!now` dan auto-update lagu sekarang nggak bikin pesan baru terus-terusan.
+Bot nyimpen satu pesan "now playing" per channel lalu di-edit selama lagu
+berganti.
+
+Aturannya:
+
+- Selama pesan dashboard belum ketimbun banyak pesan orang, bot nge-edit
+  pesan yang sama.
+- Kalau udah ketimbun (lebih dari batas pesan), bot bikin pesan dashboard baru
+  biar nggak nyusahin scroll.
+- Kalau pesan dashboard dihapus, bot otomatis bikin baru.
+
+Dashboard di-update saat:
+
+- user ngetik `!now`
+- user `!play` lagu lokal
+- lagu berganti otomatis (auto-next)
+
+Message ID dashboard cuma disimpan di memori, jadi setelah restart bot bikin
+dashboard baru. Itu memang disengaja.
+
+## Cover album (Catbox)
+
+Cover album sekarang nggak dikirim sebagai attachment lagi, jadi Media Tab
+channel tetap bersih.
+
+Alurnya:
+
+- Cover diekstrak dari metadata file lokal.
+- Cover diupload sekali ke Catbox.moe, URL-nya disimpan ke cache.
+- Embed pakai URL itu lewat `set_thumbnail`, bukan attachment.
+- Item YouTube tetap pakai thumbnail bawaannya.
+
+Cache cover disimpan ke:
+
+- `app/data/cover_urls.json`
+
+Validasi pakai `mtime` file. Kalau file diganti, cover otomatis diupload ulang.
+Kalau upload gagal atau cover nggak ada, embed tetap dikirim tanpa thumbnail
+(playback nggak ikut gagal).
+
+Upload dibatasi biar sopan ke Catbox: satu upload jalan dalam satu waktu, ada
+jeda minimum antar-upload, dan request untuk file yang sama dalam waktu
+berdekatan cuma diupload sekali.
 
 ## system
 
@@ -172,89 +260,82 @@ guard snapshoot   # setelah kondisi project dianggap aman
 guard run         # menjalankan bot lewat guard
 ```
 
-Kalau `guard run` mendeteksi file project berubah, bot tidak akan dijalankan dulu.
+Kalau guard run mendeteksi file project berubah, bot tidak akan dijalankan dulu.
 Cek perubahannya pakai:
-
 ```bash
 git status
 git diff
 ```
-
-## File lokal yang dipakai bot
-
+### File lokal yang dipakai bot
 File lokal yang bisa muncul:
 
-- `app/data/autoalir_state.json`
-- `app/data/local_cnfg.json`
-- `app/data/workspace_snapshoot.json`
-- `app/data/runtime_config.json`
+- app/data/autoalir_state.json
+- app/data/local_cnfg.json
+- app/data/workspace_snapshoot.json
+- app/data/runtime_config.json
+- app/data/queue_state.json
+- app/data/cover_urls.json
 
-File-file itu dipakai untuk state lokal, config lokal, snapshoot workspace, dan config guard.
+
+File-file itu dipakai untuk berbagai state lokal, config, snapshoot workspace, dan cache.
 Semuanya tidak perlu ikut Git.
 
-Kalau jalan langsung lewat `python main.py`, bot masih bisa bikin `local_cnfg.json` dari setup interaktif.
-Kalau jalan lewat guard, yang dipakai guard adalah `runtime_config.json`.
+Kalau jalan langsung lewat python main.py, bot masih bisa bikin local_cnfg.json dari setup interaktif.
+Kalau jalan lewat guard, yang dipakai guard adalah runtime_config.json.
 
-## Command yang ada
-
+### Command yang ada
 ### Voice
-
-| Command | Fungsi |
+|Command | Fungsi |
 | --- | --- |
-| `!join` | Bot masuk ke voice channel user |
-| `!leave` | Bot keluar dari voice channel |
+| ``!join`` | Bot masuk ke voice channel user |
+| ``!leave`` | Bot keluar dari voice channel |
 
 ### Musik lokal & library
-
-| Command | Fungsi |
+|Command | Fungsi |
 | --- | --- |
-| `!play <judul/path>` | Putar atau tambahkan lagu lokal ke queue |
-| `!search <judul>` | Cari lagu lokal |
-| `!pick <nomor>` | Putar hasil pencarian |
-| `!library` | Buka library musik |
-| `!library <halaman>` | Buka library pada halaman tertentu |
-| `!open <nomor>` | Buka folder atau putar item yang terlihat |
-| `!back` | Balik ke folder library sebelumnya |
-| `!refresh` | Refresh cache musik |
+|`!play <judul/path> ` | Putar atau tambahkan lagu lokal ke queue |
+|`!search <judul>` | Cari lagu lokal |
+|`!pick <nomor>` | Putar hasil pencarian |
+|`!library `| Buka library musik |
+|`!library <halaman>` |Buka library pada halaman tertentu |
+|`!open <nomor>` | Buka folder atau putar item yang terlihat |
+|`!back` | Balik ke folder library sebelumnya |
+|`!refresh` |Refresh cache musik |
+
 
 ### Playback & queue
-
-| Command | Fungsi |
+Command |Fungsi
 | --- | --- |
-| `!queue` | Lihat daftar antrian |
-| `!pause` | Pause lagu |
-| `!resume` | Lanjutkan lagu |
-| `!next` | Skip lagu |
-| `!repeat` | Toggle repeat |
-| `!shuffle` | Toggle shuffle queue |
-| `!remove <angka/nama>` | Hapus item dari queue |
-| `!clear` | Kosongkan queue |
-| `!now` | Lihat lagu yang sedang diputar |
-| `!volume <0-100>` | Atur volume bot |
+|`!queue` | Lihat daftar antrian|
+|`!pause` | Pause lagu |
+|`!resume` | Lanjutkan lagu |
+|`!next` | Skip lagu |
+|`!repeat` | Toggle repeat |
+|`!shuffle` | Toggle shuffle queue |
+|`!remove <angka/nama>` | Hapus item dari queue |
+|`!clear `| Kosongkan queue |
+|`!now` | Lihat lagu yang sedang diputar |
+|`!volume <0-100>` | Atur volume bot (blom fix) |
 
 ### Online
-
-| Command | Fungsi |
+Command | Fungsi
 | --- | --- |
-| `!yt <judul>` | Cari dan putar lagu dari YouTube |
+`!yt <judul>` | Cari dan putar lagu dari YouTube
 
-### Autoalir
-
-| Command | Fungsi |
+###Autoalir
+Command | Fungsi
 | --- | --- |
-| `!autoalir on` | Nyalakan autoalir |
-| `!autoalir off` | Matikan autoalir |
+`!autoalir on` | Nyalakan autoalir
+`!autoalir off` | Matikan autoalir
 
-### Bantuan
-
-| Command | Fungsi |
+###Bantuan
+Command | Fungsi
 | --- | --- |
-| `!help` | Tampilkan daftar command |
-| `!help <command>` | Tampilkan detail satu command |
+`!help` | Tampilkan daftar command
+`!help <command>` | Tampilkan detail satu command
 
 ## Requirement
-
-Yang penting ada ini:
+Yang penting ada ni:
 
 - Python 3.11+ aman
 - FFmpeg
@@ -270,52 +351,44 @@ Library Python yang kepakai di code sekarang:
 Kalau mau install cepat, tinggal pakai file requirement yang ada di repo.
 
 ## Cara jalanin
-
 ### Opsi 1: pakai env var
-
-#### Windows PowerShell
-
-```powershell
+``` Windows PowerShell
 $env:DISCORD_TOKEN="YOUR_TOKEN"
 $env:MUSIC_DIR="D:\Music"
 $env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"  # opsional
 python main.py
 ```
 
-#### Linux / macOS
+Linux / macOS
 
 ```bash
 export DISCORD_TOKEN="YOUR_TOKEN"
 export MUSIC_DIR="$HOME/Music"
 export FFMPEG_PATH="/usr/bin/ffmpeg"   # opsional
 python3 main.py
+
 ```
-
 ### Opsi 2: biarin bot nanya sendiri
-
 Kalau `DISCORD_TOKEN` atau `MUSIC_DIR` belum ada, bot bakal minta input waktu start.
-Hasilnya nanti disimpan ke `app/data/local_cnfg.json`.
-
+Hasilnya nanti disimpan ke ``app/data/local_cnfg.json.``
 Jalankan aja:
-
 ```bash
 python main.py
 ```
 
-### Opsi 3: pakai guard launcher
 
+### Opsi 3: pakai guard launcher
 Build guard dulu.
 
-#### Windows PowerShell
-
-```powershell
+Windows
+``` Windows PowerShell
 go build -o guard.exe .\tools\guard
 .\guard.exe config
 .\guard.exe snapshoot
 .\guard.exe run
 ```
 
-#### Linux / macOS
+Linux / macOS
 
 ```bash
 go build -o guard ./tools/guard
@@ -324,39 +397,42 @@ go build -o guard ./tools/guard
 ./guard run
 ```
 
+
 Opsi ini yang paling disarankan kalau token ingin disimpan terenkripsi secara lokal.
-
-## Struktur modul singkat
-
+Struktur modul singkat
 Bagian pentingnya gini:
 
-- `main.py`  
-  Entry point bot
+- `main.py`
+ 
+ Entry point bot
+- `app/config.py`
+ 
+ Ambil config env + config lokal + setup interaktif
 
-- `app/config.py`  
-  Ambil config env + config lokal + setup interaktif
+- `app/events.py`
 
-- `app/events.py`  
-  Event bot, preload cache, cleanup voice, load state autoalir
+Event bot, preload cache, cleanup voice, load state autoalir
+- `app/player.py`
 
-- `app/player.py`  
-  Alur play utama, queue, autoalir, after-play callback
+Alur play utama, queue, autoalir, after-play callback
+- `app/music_cache.py`
 
-- `app/music_cache.py`  
-  Scan folder musik dan fuzzy search
+ Scan folder musik dan fuzzy search
+- `app/metadata.py`
 
-- `app/metadata.py`  
-  Baca metadata audio dan cover
+Baca metadata audio dan cover
+- `app/autoalir_store.py`
 
-- `app/autoalir_store.py`  
-  Simpan / load state autoalir ke JSON
+Simpan / load state autoalir ke JSON
+- `app/commands/`
 
-- `app/commands/`  
-  Semua command Discord
+Semua command Discord
 
-## Catatan
+Catatan
 
-- Cache musik dianggap basi setelah `30` detik
-- Bot preload metadata dan cover pelan-pelan saat startup
-- State autoalir disimpan lokal, jadi selera dan history bisa kebawa ke restart berikutnya
-- Kalau folder musik kosong, bot tetap bisa start, tapi command lokal ya belum ada isinya
+   ```
+    Cache musik dianggap basi setelah 30 detik
+    Bot preload metadata dan cover pelan-pelan saat startup
+    State autoalir disimpan lokal, jadi selera dan history bisa kebawa ke restart berikutnya
+    Kalau folder musik kosong, bot tetap bisa start, tapi command lokal ya belum ada isinya
+

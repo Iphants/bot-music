@@ -3,6 +3,8 @@ import asyncio
 import os
 import random
 import re
+import time
+import discord
 from collections import Counter, deque
 from functools import partial
 from pathlib import Path
@@ -12,7 +14,7 @@ from . import config
 from . import runtime
 from . import state
 from .yt import get_audio_source
-from .autoalir_store import save_autoalir_state
+from .autoalir_store import save_autoalir_state, save_queue
 
 # helper kecil buat ngunci guild dan beresin queue
 def kunci_lagu(guild_id):
@@ -73,27 +75,36 @@ def catat_selera(guild_id, item):
     save_autoalir_state()
 
 # pecah rel path lagu biar gampang dibandingin folder/artist/album
+_RE_DISC = re.compile(r"^(?:cd|dis[ck])\s*\d+$")
+
+def _disc_folder(nama: str) -> bool:
+    return bool(_RE_DISC.match(nama.strip().lower()))
+
 def pecah_struktur_lagu(rel_path: str):
     rel_norm = str(rel_path).replace("\\", "/").strip("/")
-    parts = Path(rel_norm).parts
-    hasil = {"rel": rel_norm, "parent": str(Path(rel_norm).parent).replace("\\", "/").lower(), "artist": None, "album": None, "disc": None, "nama_file": Path(rel_norm).name.lower(),}
+    p = Path(rel_norm)
+    folders = list(p.parts[:-1])
+    n = len(folders)
+    hasil = {"rel": rel_norm, "parent": str(p.parent).replace("\\", "/").lower(), "top": None, "unit": None, "artist": None, "album": None, "disc": None, "nama_file": p.name.lower(),}
 
-    if len(parts) == 1:
-        debug_autoalir(f"pecah_struktur: {rel_norm} -> {hasil}")
-        return hasil
-    if len(parts) == 2:
-        hasil["artist"] = parts[0].lower()
-        debug_autoalir(f"pecah_struktur: {rel_norm} -> {hasil}")
-        return hasil
-    if len(parts) == 3:
-        hasil["artist"] = parts[0].lower()
-        hasil["album"] = parts[1].lower()
+    if n == 0:
         debug_autoalir(f"pecah_struktur: {rel_norm} -> {hasil}")
         return hasil
     
-    hasil["artist"] = parts[0].lower()
-    hasil["album"] = parts[1].lower()
-    hasil["disc"] = parts[2].lower()
+    album_idx = n - 1
+    if _disc_folder(folders[-1]):
+        hasil["disc"] = folders[-1].lower()
+        album_idx = n - 2
+
+    hasil["top"] = folders[0].lower()
+    if album_idx >= 0:
+        hasil["album"] = folders[album_idx].lower()
+
+    if album_idx > 1:
+        hasil["unit"] = folders[1].lower()
+
+    hasil["artist"] = hasil["unit"] or hasil["top"]
+    
     debug_autoalir(f"pecah_struktur: {rel_norm} -> {hasil}")
     return hasil
 
@@ -119,6 +130,7 @@ def dom_auto(guild_id):
     hist = list(state.history_mid_autoalir.get(guild_id, []))[-RIWAYAT_AUTOALIR_MID:]
     h_parent = Counter()
     h_artist = Counter()
+    h_top = Counter()
 
     for item in hist:
         if not isinstance(item, str):
@@ -129,8 +141,10 @@ def dom_auto(guild_id):
             h_parent[info["parent"]] += 1
         if info["artist"]:
             h_artist[info["artist"]] += 1
+        if info["top"]:
+            h_top[info["top"]] += 1
 
-    return {"total": len(hist), "parent": h_parent, "artist": h_artist, }
+    return {"total": len(hist), "parent": h_parent, "artist": h_artist, "top":h_top }
 
 # kalau history udah kepenuhan, skor ditahan dikit
 def penalti_dom(info, dominasi, skor, rincian):
@@ -149,6 +163,14 @@ def penalti_dom(info, dominasi, skor, rincian):
         penalti = min(36, (jumlah_artist - 4) * 9)
         skor -= penalti
         rincian.append(f"penalti_dominasi_artist=-{penalti}")
+
+    top = info["top"]
+    if top and top != artist:
+        jumlah_top = dominasi.get("top", {}).get(top, 0)
+        if jumlah_top >= 12:
+            penalti = min(18, (jumlah_top - 11) * 4)
+            skor -= penalti
+            rincian.append(f"penalti_dominasi_top=-{penalti}")
     return skor
 
 def penalti_tipe(tipe_kandidat, tipe_terakhir, tahap, skor, rincian):
@@ -232,21 +254,19 @@ def pilih_lagu_auto(guild_id):
         if info["parent"] == info_terakhir["parent"]:
             skor += 120
             rincian.append("parent_sama=120")
-        if info["artist"] and info["artist"] == info_terakhir["artist"]:
-            skor += 70
-            rincian.append("artist_sama=70")
         if info["album"] and info["album"] == info_terakhir["album"]:
             skor += 40
             rincian.append("album_sama=40")
+        if info["artist"] and info["artist"] == info_terakhir["artist"]:
+            skor += 70
+            rincian.append("artist_sama=70")
         if info["disc"] and info["disc"] == info_terakhir["disc"]:
             skor += 20
             rincian.append("disc_sama=20")
-        bonus_selera = min(state.selera_guild.get(guild_id, {}).get(rel_path, 0), 3) * 4
-        if bonus_selera:
-            skor += bonus_selera
-            rincian.append(f"bonus_selera={bonus_selera}")
+        elif info["top"] and info["top"] == info_terakhir["top"]:
+            skor += 25
+            rincian.append("top_sama=25")
 
-        # cek varian file biar ga kebanyakan muter versi mirip
         nama = info["nama_file"]
         nama_terakhir = info_terakhir["nama_file"]
         tipe_kandidat = tipe_lagu(rel_path, info)
@@ -307,6 +327,9 @@ def pilih_lagu_auto(guild_id):
             if info["album"] and info["album"] == info_terakhir["album"]:
                 skor += 30
                 rincian.append("album_sama=30")
+            elif info ["top"] and info ["top"] == info_terakhir["top"]:
+                skor += 20
+                rincian.append("top_sama=20")
             if info["disc"] and info["disc"] == info_terakhir["disc"]:
                 skor += 15
                 rincian.append("disc_sama=15")
@@ -419,6 +442,41 @@ def judul_dasar (rel_path: str) -> str :
         return Path(str(rel_path)).stem.lower().strip()
     return nama
 
+NP_CHAT_THRESHOLD = 9
+async def update_dashboard (channel, embed):
+    ch_id = channel.id
+    msg_id = state.last_np_message.get(ch_id)
+    jumlah = state.pesan_sejak_np.get(ch_id, 0)
+
+    if msg_id and jumlah < NP_CHAT_THRESHOLD:
+        try:
+            msg = await channel.fetch_message(msg_id)
+            await msg.edit(embed=embed)
+            state.pesan_sejak_np[ch_id] = 0
+            return msg
+        except discord.HTTPException:
+            state.last_np_message.pop(ch_id, None)
+    
+    msg = await channel.send(embed=embed)
+    state.last_np_message[ch_id] = msg.id
+    state.pesan_sejak_np[ch_id] = 0
+    return msg
+
+async def refresh_dashboard_np(guild_id):
+    ch_id = state.np_channel.get(guild_id)
+    if not ch_id:
+        return
+    bot = runtime.get_bot()
+    if not bot:
+        return
+    channel = bot.get_channel(ch_id)
+    if not channel:
+        return
+    from .commands.playback import create_embed_np
+    embed = await create_embed_np(guild_id)
+    if embed:
+        await update_dashboard(channel, embed)
+
 # bungkus ffmpeg + volume di satu tempat
 def build_audio(source, volume=0.5):
     before_options = ""
@@ -447,6 +505,7 @@ def schedule_leave(guild_id, voice_client, delay = 15 * 60):
                 return
             if voice_client.is_playing() or voice_client.is_paused():
                 return
+            save_queue(guild_id)
             state.queue_asli.pop(guild_id, None)
             state.play_queue.pop(guild_id, None)
             state.current_playing.pop(guild_id,  None)
@@ -474,6 +533,9 @@ async def replay_c(guild_id, voice_client):
             source = build_audio(str(config.music_root_dir() / lagu), volume=vol)
 
         voice_client.play(source, after=partial(after_play, guild_id, voice_client))
+        state.started_at[guild_id] = time.time()
+        state.paused_at.pop(guild_id, None)
+        state.total_pause[guild_id] = 0
 
 # callback abis lagu selesai / stream berhenti
 def after_play(guild_id, voice_client, error):
@@ -541,10 +603,12 @@ async def play_next(guild_id, voice_client):
                     vol = state.tingkat_suara.get(guild_id, 0.5)
                     fresh = await get_audio_source(item["webpage_url"])
                     source = build_audio(fresh["url"], volume=vol)
-                    voice_client.play(
-                        source,
-                        after=partial(after_play, guild_id, voice_client)
-                    )
+                    voice_client.play(source, after=partial(after_play, guild_id, voice_client))
+                    state.started_at[guild_id] = time.time()
+                    state.paused_at.pop(guild_id, None)
+                    state.total_pause[guild_id] = 0
+                    save_queue(guild_id)
+                    asyncio.create_task(refresh_dashboard_np(guild_id))
                     print(f"Now playing YT: {title}")
                     return
 
@@ -560,7 +624,12 @@ async def play_next(guild_id, voice_client):
                 source = build_audio(str(path_full), volume=vol)
                 
                 voice_client.play(source, after=partial(after_play, guild_id, voice_client))
+                state.started_at[guild_id] = time.time()
+                state.paused_at.pop(guild_id, None)
+                state.total_pause[guild_id] = 0
                 catat_selera(guild_id, file_rel_path)
+                save_queue(guild_id)
+                asyncio.create_task(refresh_dashboard_np(guild_id))
                 return
             except Exception as e:
                 print(f"Gagal ngeplay item berikutnya: {e}")

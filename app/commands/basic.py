@@ -1,6 +1,7 @@
 from __future__ import annotations
 from discord.ext import commands
 from .. import player, state
+from ..autoalir_store import save_queue
 import discord
 import asyncio
 
@@ -95,6 +96,11 @@ def setup(bot: commands.Bot) -> None:
                 "cara pake": "!autoalir <on/off>",
                 "contoh": "!autoalir on\n!autoalir off",
             },
+            "library": {
+                "deskripsi": "mencari folder musik manual (klik-klik folder/lagu)",
+                "cara pake": "!library",
+                "contoh": "!library",
+            },
         }
 
         if command_name:
@@ -122,7 +128,7 @@ def setup(bot: commands.Bot) -> None:
                 line = f"- '!{cmd}' - {data['deskripsi']}\n"
                 if cmd in ["join", "leave", "help"]:
                     basic_komand += line
-                elif cmd in ["play", "search", "refresh", "repeat", "volume", "yt"]:
+                elif cmd in ["play", "search", "refresh", "repeat", "volume", "yt", "library"]:
                     playback_komand += line
                 elif cmd in ["pause", "resume", "next", "now", "remove", "shuffle", "autoalir"]:
                     queue_komand += line
@@ -203,6 +209,14 @@ def setup(bot: commands.Bot) -> None:
             print(f"[JOIN] ready:", vc and vc.is_connected(), "channel:", vc.channel if vc else None)
             await ctx.send("Bot masuk ke voice")
 
+        if (vc and vc.is_connected()
+            and state.play_queue.get(guild_id)
+            and not vc.is_playing()
+            and not vc.is_paused()
+            and guild_id not in state.current_playing):
+            await ctx.send("nemu antrean kesimpen, lanjut dari situ yak")
+            asyncio.create_task(player.play_next(guild_id, vc))
+
     @bot.command()
     async def leave(ctx):
         # keluar voice sambil beresin state guild
@@ -215,6 +229,7 @@ def setup(bot: commands.Bot) -> None:
                 return
             
             player.cancel_idle_leave(guild_id)
+            save_queue(guild_id)
             state.queue_asli.pop(guild_id, None)
             state.play_queue.pop(guild_id, None)
             state.current_playing.pop(guild_id, None)

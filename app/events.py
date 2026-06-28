@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from . import config, music_cache, player, runtime, state
 from .metadata import get_audio_metadata, get_cover
-from .autoalir_store import load_autoalir_state
+from .autoalir_store import load_autoalir_state, load_queue, save_queue
 
 
 # semua event bot dikaitin dari sini
@@ -14,9 +14,11 @@ def setup(bot: commands.Bot) -> None:
     async def on_ready():
         # pas bot udah connect penuh, baru aman ngeload yang lain
         runtime.set_bot_loop(asyncio.get_running_loop())
+        runtime.set_bot(bot)
 
         if not getattr(state, "autoalir_state_loaded", False):
             load_autoalir_state()
+            load_queue()
             state.autoalir_state_loaded = True
             
             print("selera:", state.selera_guild)
@@ -70,6 +72,7 @@ def setup(bot: commands.Bot) -> None:
                 player.cancel_idle_leave(guild_id)
 
                 async with player.kunci_lagu(guild_id):
+                    save_queue(guild_id)
                     state.queue_asli.pop(guild_id, None)
                     state.play_queue.pop(guild_id, None)
                     state.current_playing.pop(guild_id, None)
@@ -92,6 +95,15 @@ def setup(bot: commands.Bot) -> None:
             player.schedule_leave(guild_id, vc)
         else:
             player.cancel_idle_leave(guild_id)
+
+    @bot.listen("on_message")
+    async def hitung_message_np(message):
+        if message.author.bot or not message.guild:
+            return
+        ch_id = message.channel.id
+        if ch_id in state.last_np_message:
+            state.pesan_sejak_np[ch_id] = state.pesan_sejak_np.get(ch_id, 0) + 1
+
     
     async def preload_cache_async():
         # preload metadata/cover pelan-pelan biar command awal ga berat

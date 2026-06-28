@@ -15,6 +15,8 @@ from .. import state
 from ..yt import get_audio_source
 from functools import partial
 from ..metadata import get_audio_metadata, get_cover
+from ..autoalir_store import save_queue
+from .. import cover_cache
 
 
 # nama file cover kecil doang, cuma buat attachment embed
@@ -54,6 +56,114 @@ async def _kirim_embed(ctx, embed: discord.Embed, cover: bytes | None) -> None:
         return
     await ctx.send(embed=embed)
 
+
+def fmt_durasi(total):
+    if not total:
+        return "-"
+    menit = int(total) // 60
+    detik = int(total) % 60
+    return f"{menit}:{detik:02d}"
+
+def nama_queue(item):
+    if isinstance(item, dict):
+        return item.get("title", "Unknown YouTube")
+    
+    nama = os.path.basename(str(item))
+    nama = os.path.splitext(nama)[0]
+    nama = nama.replace("_", " ")
+    nama = re.sub(r"^\s*\d+\s*[\.\-_\)\]]*\s*", "", nama)
+    nama = re.sub(r"\s+", " ", nama).strip()
+    return nama or os.path.basename(str(item))
+
+def elaps_lagu(guild_id):
+    mulai = state.started_at.get(guild_id)
+    if not mulai:
+        return None
+    
+    ttl_pause = state.total_pause.get(guild_id, 0)
+    if guild_id in state.paused_at:
+        return max(0, state.paused_at[guild_id] - mulai - ttl_pause)
+    return max(0, time.time() - mulai - ttl_pause)
+
+def progres_bar(elapsed, duration, lebar=10):
+    if not elapsed or not duration:
+        return None
+    
+    ratio = min(1, max(0, elapsed / duration))
+    isi = int(ratio * lebar)
+    return "▰" * isi + "▱" * (lebar - isi)
+
+async def create_embed_np(guild_id):
+    current = state.current_playing.get(guild_id)
+    if not current:
+        return None
+    
+    title = "Unknown"
+    artist = None
+    album = None
+    duration = None
+    cover_url = None
+
+    if isinstance(current, dict):
+        title = current.get("title", "Unknown")
+        artist = current.get("uploader")
+        duration = current.get("duration")
+        cover_url = current.get("thumbnail")
+    else:
+        file_rel = str(current)
+        file_path_full = config.music_root_dir() / file_rel
+        kunci = str(file_path_full)
+        if kunci in state.metadata_cache:
+            metdat = state.metadata_cache[kunci]
+        else:
+            metdat = get_audio_metadata(file_path_full)
+            if metdat:
+                state.metadata_cache[kunci] = metdat
+        if metdat:
+            title = metdat.get("title") or os.path.basename(file_rel)
+            artist = metdat.get("artist")
+            album = metdat.get("album")
+            duration = metdat.get("duration")
+        else:
+            title = os.path.basename(file_rel)
+        cover_url = await cover_cache.resolve_cover(file_rel)
+
+    desc = title
+    if artist:
+        desc += f"\noleh {artist}"
+    if album:
+        desc += f"\nAlbum {album}"
+    desc += "\n\n━━━━━━━━━━━━"
+
+    embed = discord.Embed(title="lagi play", description=desc, color=0x41639b,)
+    queue_now = list(state.play_queue.get(guild_id, []))
+    lines = []
+    for i, item in enumerate(queue_now[:5], start=1):
+        lines.append(f"{i}, {nama_queue(item)}")
+    sisa = len(queue_now) - 5
+    if sisa > 0:
+        lines.append(f"+ {sisa} lagu lagi...")
+    antre_task = "\n".join(lines) if lines else "(kosong)"
+    embed.add_field(name="Antrean berikutnya", value=antre_task, inline=False)
+
+    elapsed = elaps_lagu(guild_id)
+    bar = progres_bar(elapsed, duration)
+    if elapsed is not None and duration:
+        progres_txt = f"{fmt_durasi(elapsed)} / {fmt_durasi(duration)}"
+        if bar:
+            progres_txt += f"\n{bar}"
+    else:
+        progres_txt = f"Durasi: {fmt_durasi(duration)}"
+    embed.add_field(name="Progress", value=progres_txt, inline=False)
+
+    footer = f"Antrean: {len(queue_now)} lagu"
+    if state.is_shuffle.get(guild_id, False):
+        footer += " • Shuffle nyala"
+    embed.set_footer(text=footer)
+
+    if cover_url:
+        embed.set_thumbnail(url=cover_url)
+    return embed
 
 # command-command muter lagu ngumpul di file ini
 def setup(bot: commands.Bot) -> None:
@@ -98,18 +208,7 @@ def setup(bot: commands.Bot) -> None:
             metdat = get_audio_metadata(file_path_full)
             if metdat:
                 state.metadata_cache[kunci] = metdat
-        if kunci in state.cover_cache:
-            cover = state.cover_cache[kunci]
-        else:
-            cover = get_cover(file_path_full)
-            if cover:
-                state.cover_cache[kunci] = cover
-        if cover:    
-            print(f"[COVER DEBUG] {file_path_full}")
-            print(f"size: {len(cover)} bytes")
-        else:
-            print(f"[COVER DEBUG] {file_path_full} --> no cover")
-
+                
         if not metdat:
             await ctx.send("gagal baca metadata")
             return
@@ -128,11 +227,15 @@ def setup(bot: commands.Bot) -> None:
             state.queue_asli[guild_id].append(file_rel_path)
             state.play_queue[guild_id].append(file_rel_path)
             posisi = len(state.queue_asli[guild_id])
+            save_queue(guild_id)
 
             embed = discord.Embed(title=title, description=f"oleh {artist}\nAlbum: {album}", color=0x41639b)                                                           
             embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True)   
             embed.add_field(name="Posisi", value=str(posisi), inline=True)
-            await _kirim_embed(ctx, embed, cover)
+            cover_url = await cover_cache.resolve_cover(file_rel_path)
+            if cover_url:
+                embed.set_thumbnail(url=cover_url)
+            await ctx.send(embed=embed)
             return
 
         player.ensure_deques(guild_id)
@@ -143,15 +246,15 @@ def setup(bot: commands.Bot) -> None:
             volume = state.tingkat_suara.get(guild_id, 0.5)
             source = player.build_audio(str(file_path_full), volume=volume)
             voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
+            state.started_at[guild_id] = time.time()
+            state.paused_at.pop(guild_id, None)
+            state.total_pause[guild_id] = 0
             player.catat_selera(guild_id, file_rel_path)
+            save_queue(guild_id)
     
-            embed = discord.Embed(
-                title=title,
-                description=f"oleh {artist}\nAlbum: {album}",
-                color=0x41639b
-            )   
-            embed.add_field(name="Durasi", value=f"{menit}:{detik:02d}", inline=True)
-            await _kirim_embed(ctx, embed, cover)
+            state.np_channel[guild_id] = ctx.channel.id
+            embed = await create_embed_np(guild_id)
+            await player.update_dashboard(ctx.channel, embed)
 
         except Exception as e:
             state.current_playing.pop(guild_id, None)
@@ -197,6 +300,7 @@ def setup(bot: commands.Bot) -> None:
             player.ensure_deques(guild_id)
             state.queue_asli[guild_id].append(yt_item)
             state.play_queue[guild_id].append(yt_item)
+            save_queue(guild_id)
             embed = discord.Embed(title=f"Masuk antiran", description=yt_item["title"], color=0x12d3d3)
             if yt_item.get("thumbnail"):
                 embed.set_thumbnail(url=yt_item["thumbnail"])
@@ -212,7 +316,11 @@ def setup(bot: commands.Bot) -> None:
         else:
             # kalau kosong ya gas langsung
             voice_client.play(source, after=partial(player.after_play, guild_id, voice_client))
+            state.started_at[guild_id] = time.time()
+            state.paused_at.pop(guild_id, None)
+            state.total_pause[guild_id] = 0
             state.current_playing[guild_id] = yt_item
+            save_queue(guild_id)
             embed = discord.Embed(title=yt_item["title"], description = f"oleh {yt_item.get('uploader', 'unknown')}", color=0x12d3d3)
 
             if yt_item.get("thumbnail"):
@@ -283,27 +391,29 @@ def setup(bot: commands.Bot) -> None:
     async def resume(ctx):
         # lanjut lagi kalau tadi sempet dipause
         async with player.kunci_lagu(ctx.guild.id):
+            guild_id = ctx.guild.id
             voice_client = ctx.voice_client
+            paused = state.paused_at.pop(guild_id, None)
             if voice_client and voice_client.is_paused():
                 voice_client.resume()
                 await ctx.send("infokan penglanjutan musik")
             else:
                 await ctx.send("tuli kah? gada musik yg berhenti")
 
+            if paused:
+                state.total_pause[guild_id] = state.total_pause.get (guild_id, 0) + (time.time() - paused)
+
     @bot.command()
     async def now(ctx):
-        # ngintip yang lagi muter apa sekarang
-        async with player.kunci_lagu(ctx.guild.id):
-            guild_id = ctx.guild.id
-            if guild_id in state.current_playing:
-                current = state.current_playing[guild_id]
+        guild_id = ctx.guild.id
+        embed = await create_embed_np(guild_id)
 
-                if isinstance(current, dict):
-                    await ctx.send(f"lu lagi dengerin: {current.get('title')}")
-                else:
-                    await ctx.send(f"lu lagi dengerin: {os.path.basename(current)}")
-            else:
-                await ctx.send("tuli kah? gada musiknya")
+        if embed is None:
+            await ctx.send("tuli kah? gada musiknya")
+            return
+
+        state.np_channel[guild_id] = ctx.channel.id
+        await player.update_dashboard(ctx.channel, embed)
         
     @bot.command()
     async def next(ctx):
