@@ -255,7 +255,7 @@ Dua file itu bersifat lokal dan tidak perlu ikut repository.
 Alur harian yang disarankan:
 
 ```bash
-guard config      # pertama kali saja / saat ganti token atau MUSIC_DIR
+guard config      # pertama kali saja/saat ganti token atau MUSIC_DIR
 guard snapshoot   # setelah kondisi project dianggap aman
 guard run         # menjalankan bot lewat guard
 ```
@@ -322,13 +322,13 @@ Command | Fungsi
 | --- | --- |
 `!yt <judul>` | Cari dan putar lagu dari YouTube
 
-### Autoalir
+###Autoalir
 Command | Fungsi
 | --- | --- |
 `!autoalir on` | Nyalakan autoalir
 `!autoalir off` | Matikan autoalir
 
-### Bantuan
+###Bantuan
 Command | Fungsi
 | --- | --- |
 `!help` | Tampilkan daftar command
