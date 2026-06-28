@@ -6,3 +6,6 @@ app/data/*.json
 guard
 guard.exe
 .vscode/
+test.py
+structure.txt
+CHANGE_PLAN.md
