@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from . import config
 
-# factory bot dipanggil main.py, allowed_mentions dimatiin buat nahan ping abuse
+
 def create_bot() -> commands.Bot:
     return commands.Bot(
         command_prefix="!",

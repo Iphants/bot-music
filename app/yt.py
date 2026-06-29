@@ -1,7 +1,6 @@
 import yt_dlp
 import asyncio
 
-# setting yt-dlp numpuk di sini
 YTDL_OPTIONS = {
     "format": "bestaudio/best",
     "quiet": True,
@@ -13,19 +12,16 @@ YTDL_OPTIONS = {
     "ignoreerrors": True,
     "skip_download": True,
     "js_runtimes": {
-        "node": {
-            "path": "/usr/bin/node"
-        },
+        "node": {"path": "/usr/bin/node"},
     },
 }
 
 ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
-# ambil info audio dari yt di sini, dipakai command !yt dan replay/auto-next YT
+
 async def get_audio_source(query: str):
     loop = asyncio.get_event_loop()
 
-    # kerja beratnya dilempar ke thread biar loop bot ga kesedak
     def extract():
         try:
             info = ytdl.extract_info(query, download=False)
@@ -43,8 +39,9 @@ async def get_audio_source(query: str):
                 "thumbnail": info.get("thumbnail"),
                 "duration": info.get("duration"),
                 "webpage_url": info.get("webpage_url"),
-                "uploader": info.get("uploader"),           
+                "uploader": info.get("uploader"),
             }
         except Exception as e:
             raise Exception(f"yt-dlp error: {e}")
+
     return await loop.run_in_executor(None, extract)

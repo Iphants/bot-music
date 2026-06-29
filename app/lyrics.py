@@ -12,12 +12,12 @@ _RE_WAKTU = re.compile(r"\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]")
 _RE_OFFSET = re.compile(r"\[offset:\s*([+-]?\d+)\]", re.IGNORECASE)
 _RE_META = re.compile(r"^\[[a-zA-Z]+:.*\]$")
 
-# cari file .lrc dengan nama sama persis di sebelah file audio lokal
+
 def _cari_lrc(audio_full_path: Path) -> Path | None:
     lrc = audio_full_path.with_suffix(".lrc")
     return lrc if lrc.is_file() else None
 
-# ubah timestamp LRC [mm:ss.xx] jadi detik float buat sync playback
+
 def _stamp_ke_detik(s) -> float:
     menit = int(s.group(1))
     detik = int(s.group(2))
@@ -25,7 +25,7 @@ def _stamp_ke_detik(s) -> float:
     pecahan = int(frac) / 1000 if len(frac) == 3 else int(frac) / 100
     return menit * 60 + detik + pecahan
 
-# parse LRC bertimestamp, termasuk offset dan baris terjemahan di bawahnya
+
 def _parse_synced(teks: str):
     offset_ms = 0
     m = _RE_OFFSET.search(teks)
@@ -36,7 +36,7 @@ def _parse_synced(teks: str):
             offset_ms = 0
 
     entri = []
-    terakhir = []  
+    terakhir = []
 
     for raw in teks.splitlines():
         stamps = list(_RE_WAKTU.finditer(raw))
@@ -52,7 +52,7 @@ def _parse_synced(teks: str):
         else:
             txt = raw.strip()
             if not txt:
-                terakhir = []  
+                terakhir = []
                 continue
             if _RE_META.match(txt):
                 continue
@@ -63,7 +63,6 @@ def _parse_synced(teks: str):
     return entri
 
 
-# API utama lirik lokal, dipakai !lirik/!lyrics dan live lyrics
 def muat_lirik(audio_rel_path: str):
     full = config.music_root_dir() / audio_rel_path
     lrc = _cari_lrc(full)
@@ -78,10 +77,14 @@ def muat_lirik(audio_rel_path: str):
         entri = _parse_synced(teks)
         return ("synced", entri) if entri else None
 
-    baris = [b.strip() for b in teks.splitlines() if b.strip() and not _RE_META.match(b.strip())]
+    baris = [
+        b.strip()
+        for b in teks.splitlines()
+        if b.strip() and not _RE_META.match(b.strip())
+    ]
     return ("polos", baris) if baris else None
 
-# ambil jendela kecil lirik synced sekitar posisi lagu sekarang
+
 def potong_synced(entri, elapsed, sebelum=1, sesudah=3):
     if not entri:
         return [], -1
@@ -97,7 +100,7 @@ def potong_synced(entri, elapsed, sebelum=1, sesudah=3):
     selesai = min(len(entri), idx + sesudah + 1)
     return entri[mulai:selesai], idx - mulai
 
-# ambil jendela lirik polos dengan tebakan posisi dari rasio durasi
+
 def potong_polos(baris, elapsed, duration, sebelum=1, sesudah=3):
     if not baris:
         return [], -1
@@ -110,10 +113,11 @@ def potong_polos(baris, elapsed, duration, sebelum=1, sesudah=3):
     selesai = min(len(baris), idx + sesudah + 1)
     return baris[mulai:selesai], idx - mulai
 
+
 POL_GAP = 0.5
 MIN_GAP = 2.0
 
-# hitung posisi lagu yang konsisten dengan pause/resume state player
+
 def _elapsed(guild_id):
     mulai = state.started_at.get(guild_id)
     if not mulai:
@@ -123,7 +127,7 @@ def _elapsed(guild_id):
         return max(0, state.paused_at[guild_id] - mulai - ttl)
     return max(0, time.time() - mulai - ttl)
 
-# bikin identitas track supaya live lyrics tahu kapan lagu berganti
+
 def _track_id(currnet):
     if currnet is None:
         return None
@@ -131,12 +135,12 @@ def _track_id(currnet):
         return currnet.get("webpage_url")
     return str(currnet)
 
-# load data lirik untuk track aktif; YT sengaja ditandai tanpa lirik lokal
+
 def _muat_live(current):
     if isinstance(current, dict):
         return "yt", None, None
     file_rel = str(current)
-    hasil = muat_lirik  (file_rel)
+    hasil = muat_lirik(file_rel)
     full = config.music_root_dir() / file_rel
     metdat = state.metadata_cache.get(str(full)) or get_audio_metadata(full)
     duration = metdat.get("duration") if metdat else None
@@ -145,7 +149,7 @@ def _muat_live(current):
     jenis, data = hasil
     return jenis, data, duration
 
-# cari index baris aktif supaya panel live cuma diedit saat berubah
+
 def _idx_aktif(jenis, data, duration, elapsed):
     if jenis == "synced" and data:
         idx = -1
@@ -157,12 +161,12 @@ def _idx_aktif(jenis, data, duration, elapsed):
         return idx
     if jenis == "polos" and data:
         if duration and duration > 0:
-            rasio = min(1.0, max(0.0, elapsed/duration))
+            rasio = min(1.0, max(0.0, elapsed / duration))
             return min(len(data) - 1, int(rasio * len(data)))
         return 0
     return -1
 
-# render teks panel live lyrics sebelum dikirim/diedit ke Discord
+
 def _render(jenis, data, duration, elapsed):
     if jenis == "yt":
         return "Lagu yt ga ada lirik lokal"
@@ -177,14 +181,13 @@ def _render(jenis, data, duration, elapsed):
             for s in subs:
                 out.append(f"-# {s}")
         return "\n".join(out)
-    
     pot, idx = potong_polos(data, elapsed, duration)
     out = ["**Live Lyrics**", "-# (lirik gada timestamp, nebak dari durasi)"]
     for i, b in enumerate(pot):
         out.append(f"**> {b}**" if i == idx else b)
     return "\n".join(out)
 
-# edit satu pesan live lyrics, dibatasi MIN_GAP biar ga spam API Discord
+
 async def _coba_edit(ch, sesi, teks, idx):
     now = time.time()
     if teks == sesi["last_render"]:
@@ -213,7 +216,7 @@ async def _coba_edit(ch, sesi, teks, idx):
     sesi["last_idx"] = idx
     sesi["last_render"] = teks
 
-# loop per guild untuk ngikutin lagu aktif dan update panel live lyrics
+
 async def _loop_live(bot, guild_id):
     sesi = state.lirik_sesi.get(guild_id)
     if not sesi:
@@ -227,7 +230,6 @@ async def _loop_live(bot, guild_id):
             sesi = state.lirik_sesi.get(guild_id)
             if not sesi:
                 return
-            
             current = state.current_playing.get(guild_id)
             track = _track_id(current)
             if track != sesi["track"]:
@@ -255,7 +257,7 @@ async def _loop_live(bot, guild_id):
     except Exception as e:
         print(f"[LIRIK] loop error: {e}")
 
-# dipanggil command !lirik live untuk mulai satu sesi live lyrics per guild
+
 async def start_live(bot, guild_id, channel):
     await stop_live(bot, guild_id)
     sesi = {
@@ -273,7 +275,7 @@ async def start_live(bot, guild_id, channel):
     state.lirik_sesi[guild_id] = sesi
     sesi["task"] = asyncio.create_task(_loop_live(bot, guild_id))
 
-# dipanggil command !lirik off dan start_live buat matiin sesi lama
+
 async def stop_live(bot, guild_id):
     sesi = state.lirik_sesi.pop(guild_id, None)
     if not sesi:

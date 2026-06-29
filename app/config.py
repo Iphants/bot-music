@@ -4,9 +4,7 @@ from pathlib import Path
 import discord
 import json
 
-# input token/path interaktif dipakai setup_inter waktu env belum siap
 def input_sensor(prompt: str) -> str:
-    # branch windows, biar input token ga aneh
     if os.name == "nt":
         import msvcrt
 
@@ -28,15 +26,13 @@ def input_sensor(prompt: str) -> str:
                 continue
             chars.append(ch)
         return "".join(chars)
-    
-    # selain windows jatohnya pake mode terminal biasa
+
     import sys
     import termios
     import tty
 
     if not sys.stdin.isatty():
         return input(prompt)
-    
     chars = []
     print(prompt, end="", flush=True)
 
@@ -48,7 +44,7 @@ def input_sensor(prompt: str) -> str:
         while True:
             ch = sys.stdin.read(1)
 
-            if ch in ("\r", '\n'):
+            if ch in ("\r", "\n"):
                 print()
                 break
             if ch == "\x03":
@@ -63,11 +59,11 @@ def input_sensor(prompt: str) -> str:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_sett)
     return "".join(chars)
 
-# fallback MUSIC_DIR kalau env/config lokal belum ngasih path
+
 def default_music_di() -> Path:
     return (Path.cwd() / "Music").resolve()
 
-# dipakai setup_inter buat validasi folder musik sebelum bot jalan
+
 def ada_isi(path: Path) -> bool:
     ext_ok = (".mp3", ".wav", ".flac", ".m4a")
 
@@ -81,7 +77,7 @@ def ada_isi(path: Path) -> bool:
         return False
     return False
 
-# setup awal env lokal, dipanggil main.py tiap start
+
 def setup_inter() -> None:
     local_config = load_local()
     apply_config(local_config)
@@ -107,11 +103,13 @@ def setup_inter() -> None:
         path_env = Path(env_music).expanduser().resolve()
         if not ada_isi(path_env):
             print(f"MUSIC_DIR skrng ga valid / kosong: {path_env}")
-            tnya_path = True    
+            tnya_path = True
 
     if tnya_path:
         print(f"Defauld folder musik: {def_dir}")
-        jwab = input("Masukkin path folder musik, atau enter untuk pake default ./Music: ").strip()
+        jwab = input(
+            "Masukkin path folder musik, atau enter untuk pake default ./Music: "
+        ).strip()
 
         if jwab:
             music_path = Path(jwab).expanduser().resolve()
@@ -129,14 +127,15 @@ def setup_inter() -> None:
         save_local(local_config)
         print(f"[CONFIG] config local disimpan ke {LOCAL_CNFG}")
 
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 LOCAL_CNFG = DATA_DIR / "local_cnfg.json"
 
-# baca config lokal yang dibuat setup_inter / guard fallback
+
 def load_local() -> dict:
     if not LOCAL_CNFG.exists():
-        return{}
+        return {}
     try:
         with LOCAL_CNFG.open("r", encoding="utf-8") as f:
             data = json.load(f)
@@ -144,9 +143,9 @@ def load_local() -> dict:
     except (OSError, json.JSONDecodeError):
         print("[CONFIG] local_config.json rusak / gagal di baca, bakal di setup ulang")
         return {}
-    
-# tulis config lokal secara atomic biar file ga gampang corrupt
-def save_local (data: dict) -> None:
+
+
+def save_local(data: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     temp_file = LOCAL_CNFG.with_suffix(".tmp")
@@ -154,8 +153,8 @@ def save_local (data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
     temp_file.replace(LOCAL_CNFG)
 
-# masukin config lokal ke env kalau env asli belum diset
-def apply_config (data: dict) -> None:
+
+def apply_config(data: dict) -> None:
     token = data.get("DISCORD_TOKEN")
     music_dir = data.get("MUSIC_DIR")
     ffmpeg_path = data.get("FFMPEG_PATH")
@@ -163,11 +162,11 @@ def apply_config (data: dict) -> None:
     if token and not os.environ.get("DISCORD_TOKEN"):
         os.environ["DISCORD_TOKEN"] = str(token)
     if music_dir and not os.environ.get("MUSIC_DIR"):
-        os.environ["MUSIC_DIR"]  = str(music_dir)
+        os.environ["MUSIC_DIR"] = str(music_dir)
     if ffmpeg_path and not os.environ.get("FFMPEG_PATH"):
-        os.environ["FFMPEG_PATH"] = str(ffmpeg_path)   
+        os.environ["FFMPEG_PATH"] = str(ffmpeg_path)
 
-# intent bot yang emang dipake sekarang
+
 def build_intents() -> discord.Intents:
     intents = discord.Intents.default()
     intents.message_content = True
@@ -176,35 +175,26 @@ def build_intents() -> discord.Intents:
     intents.members = True
     return intents
 
-# root folder musik aktif
+
 def music_root_dir() -> Path:
     env = os.environ.get("MUSIC_DIR")
     if env:
         return Path(env).expanduser().resolve()
     return default_music_di()
 
-# ffmpeg ambil dari env, kalau ga ada ya ngandelin PATH
+
 def ffmpeg_executable() -> str:
-    """
-    FFmpeg binary name/path.
-    - FFMPEG_PATH env var can point to a full path (recommended on Windows)
-    - Otherwise rely on PATH lookup ("ffmpeg")
-    """
     return os.environ.get("FFMPEG_PATH", "ffmpeg")
 
-# token bot wajib ada sebelum jalan
+
 def discord_token() -> str:
-    """
-    Discord bot token from environment.
-    """
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
-        # sengaja dibiarin meledak di awal biar ketahuan dari start
         raise RuntimeError(
             "Missing DISCORD_TOKEN env var. "
             "Set it before running: DISCORD_TOKEN=... python main.py"
         )
     return token
 
-# cache file musik dianggap basi setelah segini detik
+
 CACHE_DURATION_SECONDS: int = 30

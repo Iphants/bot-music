@@ -8,11 +8,9 @@ from .metadata import get_audio_metadata, get_cover
 from .autoalir_store import load_autoalir_state, load_queue, save_queue
 
 
-# semua event bot dikaitin dari sini
 def setup(bot: commands.Bot) -> None:
     @bot.event
     async def on_ready():
-        # pas bot udah connect penuh, baru aman ngeload yang lain
         runtime.set_bot_loop(asyncio.get_running_loop())
         runtime.set_bot(bot)
 
@@ -20,13 +18,11 @@ def setup(bot: commands.Bot) -> None:
             load_autoalir_state()
             load_queue()
             state.autoalir_state_loaded = True
-            
             print("selera:", state.selera_guild)
             print("terakhir:", state.lagu_terakhir_lokal)
             print("history:", state.history_autoalir)
             print("history_mid:", state.history_mid_autoalir)
             print("history_judul:", state.history_jdul_autoalir)
-
 
         print(f"Bot {bot.user} on aktif dinyalakan")
         music_cache.dapetin_cache_file()
@@ -37,28 +33,30 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.event
     async def on_command_error(ctx, error):
-        # semua error command difilter di sini biar chat ga kebocoran traceback
         embed = discord.Embed(title="Error", color=discord.Color.red())
-        
         if isinstance(error, commands.CommandNotFound):
             return
         elif isinstance(error, commands.MissingRequiredArgument):
             embed.description = f"Argumen '{error.param.name}' wajib diisi"
         elif isinstance(error, commands.CommandOnCooldown):
-            embed.description = f"Sabar jembut, coba lagi pas {error.retry_after:.2f} detik."
+            embed.description = (
+                f"Sabar jembut, coba lagi pas {error.retry_after:.2f} detik."
+            )
         elif isinstance(error, commands.MissingPermissions):
-            embed.description = f"Permission lu kurang: {', '.join(error.missing_permissions)}"
+            embed.description = (
+                f"Permission lu kurang: {', '.join(error.missing_permissions)}"
+            )
         elif isinstance(error, commands.CheckFailure):
-            embed.description = "lu ga punya akses buat command ini (butuh role DJ / admin server)"
+            embed.description = (
+                "lu ga punya akses buat command ini (butuh role DJ / admin server)"
+            )
         elif isinstance(error, commands.CommandInvokeError):
             embed.description = "error internal, coba lagi atau lapor admin"
             print(f"[ERROR INTERNAL] Command !{ctx.command} error:")
             print(traceback.format_exc())
-            
         else:
             embed.description = "error internal, coba lagi atau lapor admin"
             print(f"[ERROR UNKNOWN] Command !{ctx.command} error: {error}")
-            
         try:
             await ctx.send(embed=embed)
         except Exception:
@@ -66,7 +64,6 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.event
     async def on_voice_state_update(member, before, after):
-        # ngurus masuk-keluar voice sama cleanup kalau bot cabut
         if not bot.user:
             return
 
@@ -86,10 +83,15 @@ def setup(bot: commands.Bot) -> None:
                 print(f"[CLEAN] bot keluar paksa dari voice, {guild_id}")
             return
 
-        guild = before.channel.guild if before.channel else after.channel.guild if after.channel else None
+        guild = (
+            before.channel.guild
+            if before.channel
+            else after.channel.guild
+            if after.channel
+            else None
+        )
         if not guild:
             return
-        
         vc = guild.voice_client
         if not vc or not vc.channel:
             return
@@ -104,23 +106,19 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.listen("on_message")
     async def hitung_message_np(message):
-        # hitung chat setelah dashboard supaya update_dashboard tahu kapan bikin pesan baru
         if message.author.bot or not message.guild:
             return
         ch_id = message.channel.id
         if ch_id in state.last_np_message:
             state.pesan_sejak_np[ch_id] = state.pesan_sejak_np.get(ch_id, 0) + 1
 
-    
     async def preload_cache_async():
-        # preload metadata/cover pelan-pelan biar command awal ga berat
         base = config.music_root_dir()
         cache = music_cache.dapetin_cache_file()
         semua_path = []
 
         for v in cache.values():
             semua_path.extend(v)
-        
         semua_path = list(set(semua_path))
         print(f"[CACHE] mulai preload {len(semua_path)} lagu")
 
@@ -141,4 +139,4 @@ def setup(bot: commands.Bot) -> None:
             except Exception as e:
                 print(f"[CACHE ERROR] {file_rel} -> {e}")
 
-        print ("[CACHE] selesai")
+        print("[CACHE] selesai")

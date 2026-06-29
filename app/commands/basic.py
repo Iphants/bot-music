@@ -5,11 +5,10 @@ from ..autoalir_store import save_queue
 import discord
 import asyncio
 
-# command basic dipasang main.py untuk help, voice join/leave, dan autoalir toggle
+
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def help(ctx, command_name: str = None):
-        # sumber data help; harus sinkron dengan command yang dipasang di main.py
         data_tolong = {
             "join": {
                 "deskripsi": "bot masuk ke voice lu berada",
@@ -139,19 +138,23 @@ def setup(bot: commands.Bot) -> None:
         }
 
         if command_name:
-            # detail satu command, misalnya !help play atau !help !play
             command_name = command_name.lower().strip().lstrip("!")
             if command_name in data_tolong:
                 data = data_tolong[command_name]
                 embed = discord.Embed(title=f"Komand: !{command_name}", color=0xFFA500)
                 embed.add_field(name="deskripsi", value=data["deskripsi"], inline=False)
-                embed.add_field(name="cara pake", value=f"`{data['cara pake']}`", inline=False)
-                embed.add_field(name="contoh", value=f"`{data['contoh']}`", inline=False)
+                embed.add_field(
+                    name="cara pake", value=f"`{data['cara pake']}`", inline=False
+                )
+                embed.add_field(
+                    name="contoh", value=f"`{data['contoh']}`", inline=False
+                )
                 await ctx.send(embed=embed)
             else:
-                await ctx.send(f"Komand !{command_name} ga ada, ato ga blom gw tambahin")
+                await ctx.send(
+                    f"Komand !{command_name} ga ada, ato ga blom gw tambahin"
+                )
         else:
-            # daftar umum dipisah per kelompok biar embed Discord gampang discan
             embed = discord.Embed(
                 title="*pertolongan bot*",
                 description="List komand yang gw masukin:",
@@ -167,9 +170,27 @@ def setup(bot: commands.Bot) -> None:
                 line = f"- `!{cmd}` - {data['deskripsi']}\n"
                 if cmd in ["join", "leave", "help", "autoalir"]:
                     basic_komand += line
-                elif cmd in ["play", "yt", "thumbnail", "search", "pick", "refresh", "repeat", "volume"]:
+                elif cmd in [
+                    "play",
+                    "yt",
+                    "thumbnail",
+                    "search",
+                    "pick",
+                    "refresh",
+                    "repeat",
+                    "volume",
+                ]:
                     playback_komand += line
-                elif cmd in ["queue", "pause", "resume", "next", "now", "remove", "shuffle", "clear"]:
+                elif cmd in [
+                    "queue",
+                    "pause",
+                    "resume",
+                    "next",
+                    "now",
+                    "remove",
+                    "shuffle",
+                    "clear",
+                ]:
                     queue_komand += line
                 elif cmd in ["lyrics", "lirik"]:
                     lirik_komand += line
@@ -180,22 +201,26 @@ def setup(bot: commands.Bot) -> None:
             if basic_komand:
                 embed.add_field(name="*basic komand*", value=basic_komand, inline=False)
             if playback_komand:
-                embed.add_field(name="*playback komand*", value=playback_komand, inline=False)
+                embed.add_field(
+                    name="*playback komand*", value=playback_komand, inline=False
+                )
             if queue_komand:
                 embed.add_field(name="*queue komand*", value=queue_komand, inline=False)
             if lirik_komand:
                 embed.add_field(name="*lirik komand*", value=lirik_komand, inline=False)
             if library_komand:
-                embed.add_field(name="*library komand*", value=library_komand, inline=False)
+                embed.add_field(
+                    name="*library komand*", value=library_komand, inline=False
+                )
             if komand_lainnya:
-                embed.add_field(name="*komand yang lain*", value=komand_lainnya, inline=False)
+                embed.add_field(
+                    name="*komand yang lain*", value=komand_lainnya, inline=False
+                )
             embed.set_footer(text="pake !help <command> klo lu mau tw lebih lajut")
             await ctx.send(embed=embed)
 
-
     @bot.command()
     async def autoalir(ctx, mode: str = None):
-        # toggle per guild, dibaca player.play_next saat queue habis
         guild_id = ctx.guild.id
 
         if mode is None:
@@ -219,11 +244,9 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def join(ctx):
-        # masuk/pindah voice user, lalu lanjutkan queue tersimpan kalau ada
         if not ctx.author.voice:
             await ctx.send("Masuk voice dulu")
             return
-      
         guild_id = ctx.guild.id
 
         async with player.kunci_lagu(guild_id):
@@ -255,20 +278,27 @@ def setup(bot: commands.Bot) -> None:
             await asyncio.sleep(0.5)
 
             player.cancel_idle_leave(ctx.guild.id)
-            print(f"[JOIN] ready:", vc and vc.is_connected(), "channel:", vc.channel if vc else None)
+            print(
+                "[JOIN] ready:",
+                vc and vc.is_connected(),
+                "channel:",
+                vc.channel if vc else None,
+            )
             await ctx.send("Bot masuk ke voice")
 
-        if (vc and vc.is_connected()
+        if (
+            vc
+            and vc.is_connected()
             and state.play_queue.get(guild_id)
             and not vc.is_playing()
             and not vc.is_paused()
-            and guild_id not in state.current_playing):
+            and guild_id not in state.current_playing
+        ):
             await ctx.send("nemu antrean kesimpen, lanjut dari situ yak")
             asyncio.create_task(player.play_next(guild_id, vc))
 
     @bot.command()
     async def leave(ctx):
-        # keluar voice sambil simpan queue dan bersihin state runtime guild
         guild_id = ctx.guild.id
 
         async with player.kunci_lagu(guild_id):
@@ -276,7 +306,6 @@ def setup(bot: commands.Bot) -> None:
             if not vc or not vc.is_connected():
                 await ctx.send("botnya gada di voice")
                 return
-            
             player.cancel_idle_leave(guild_id)
             save_queue(guild_id)
             state.queue_asli.pop(guild_id, None)

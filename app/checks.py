@@ -1,12 +1,10 @@
 from __future__ import annotations
 from discord.ext import commands
 
-# nama role yang boleh akses command sensitif bareng owner/admin
 DJ_ROLE_NAMES = {"dj", "musik", "music"}
 
-# decorator ini dipakai command !refresh, !clear, dan !volume
+
 def is_dj_or_admin():
-    # predicate dipanggil discord.py sebelum command sensitif dieksekusi
     async def predicate(ctx):
         if ctx.guild is None:
             return False
@@ -19,4 +17,5 @@ def is_dj_or_admin():
         if role_user & DJ_ROLE_NAMES:
             return True
         raise commands.CheckFailure("butuh role DJ atau izin admin server")
+
     return commands.check(predicate)

@@ -3,7 +3,6 @@ from mutagen.flac import FLAC
 from mutagen import File
 
 
-# rapihin isi tag jadi string biasa dulu
 def _tag_val(value):
     if not value:
         return None
@@ -19,7 +18,6 @@ def _tag_val(value):
     return text or None
 
 
-# nyoba beberapa nama tag sampe dapet isi
 def _tag_ambil(tags, *nama_tags):
     if not tags:
         return None
@@ -37,7 +35,7 @@ def _tag_ambil(tags, *nama_tags):
                 return value
     return None
 
-# metadata dasar lagu diambil command !play, !now, preload, dan lirik polos
+
 def get_audio_metadata(file_path):
     audio = File(file_path)
 
@@ -51,14 +49,13 @@ def get_audio_metadata(file_path):
 
     raw_tags = audio.tags or {}
 
-    # helper kecil doang, cuma kepake buat fungsi ini
     def ambil(easy_names, raw_names):
         return (
             _tag_ambil(easy_tags, *easy_names)
             or _tag_ambil(raw_tags, *raw_names)
             or "Unknown"
         )
-    
+
     return {
         "title": ambil(("title",), ("title", "TIT2", "\xa9nam")),
         "artist": ambil(
@@ -66,10 +63,10 @@ def get_audio_metadata(file_path):
             ("artist", "ARTIST", "TPE1", "\xa9ART", "aART"),
         ),
         "album": ambil(("album",), ("album", "ALBUM", "TALB", "\xa9alb")),
-        "duration": int(audio.info.length) if audio.info and audio.info.length else 0
+        "duration": int(audio.info.length) if audio.info and audio.info.length else 0,
     }
 
-# nyari cover art buat embed lama/preload dan command !thumbnail
+
 def get_cover(file_path):
     try:
         audio = File(file_path)
@@ -81,7 +78,6 @@ def get_cover(file_path):
             if cover:
                 first_cover = cover[0] if isinstance(cover, (list, tuple)) else cover
                 return bytes(first_cover)
-            
             for tag in audio.tags.values():
                 if isinstance(tag, APIC):
                     return tag.data

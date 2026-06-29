@@ -5,7 +5,7 @@ import time
 from . import config
 from . import state
 
-# scan folder musik terus bikin map buat lookup cepet
+
 def buat_music_cache():
     music_files = {}
     ext_ok = (".mp3", ".wav", ".flac", ".m4a")
@@ -28,15 +28,17 @@ def buat_music_cache():
         print(f"error ngebangun cache {e}")
         return {}
 
-# ambil cache, kalau basi ya bangun lagi
+
 def dapetin_cache_file():
     sekarang = time.time()
-    if not state.file_cache or (sekarang - state.cache_timestamp > config.CACHE_DURATION_SECONDS):
+    if not state.file_cache or (
+        sekarang - state.cache_timestamp > config.CACHE_DURATION_SECONDS
+    ):
         state.file_cache = buat_music_cache()
         state.cache_timestamp = sekarang
     return state.file_cache
 
-# search lokal, mulai dari exact terus turun ke fuzzy
+
 def cari_lagu(query):
     try:
         semua_file_cache = dapetin_cache_file()
@@ -51,12 +53,14 @@ def cari_lagu(query):
             return list(dict.fromkeys(hasil))[:10]
 
         semua_katkunc = list(semua_file_cache.keys())
-        hasil_fuzzy = difflib.get_close_matches(query_lower, semua_katkunc, n=20, cutoff=0.65)
+        hasil_fuzzy = difflib.get_close_matches(
+            query_lower, semua_katkunc, n=20, cutoff=0.65
+        )
         semua_hasil = []
 
         for key in hasil_fuzzy:
             semua_hasil.extend(semua_file_cache.get(key, []))
-        seen = []  # dedupe hasil fuzzy sebelum ditampilin !search
+        seen = []
         out = []
 
         for item in semua_hasil:
@@ -65,13 +69,12 @@ def cari_lagu(query):
                 out.append(item)
             if len(out) >= 10:
                 break
-            
         return out
     except Exception as e:
         print(f"error jir ngebaca direktori nya: {e}")
         return []
 
-# cari satu file yang paling cocok buat langsung diputer
+
 def cari_file_cocok(nama_file):
     try:
         semua_file_cache = dapetin_cache_file()
@@ -81,7 +84,9 @@ def cari_file_cocok(nama_file):
         qnorm = nama_file_lower.replace("\\", "/")
         if qnorm in semua_file_cache:
             return semua_file_cache[qnorm][0]
-        if not any(nama_file_lower.endswith(ext) for ext in (".mp3", ".wav", ".flac", ".m4a")):
+        if not any(
+            nama_file_lower.endswith(ext) for ext in (".mp3", ".wav", ".flac", ".m4a")
+        ):
             for ext in (".flac", ".mp3", ".wav", ".m4a"):
                 nama_file_ext = nama_file_lower + ext
                 if nama_file_ext in semua_file_cache:
