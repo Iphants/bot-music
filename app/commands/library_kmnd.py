@@ -35,7 +35,8 @@ def push_history(author_id, base):
     base = base.resolve()
     if not history or history[-1] != base:
         history.append(base)
-    
+
+# ambil folder terakhir dari stack history untuk tombol/command back
 def pop_history(author_id):
     history = state.folder_history.get(author_id)
     if not history:
@@ -48,6 +49,7 @@ def pop_history(author_id):
 def _all_items(folders, files):
     return [("folder", f) for f in folders] + [("file", f) for f in files]
 
+# motong daftar folder+file untuk embed library dan command !open
 def page_items(folders, files, page = 0, per_page=PER_PAGE):
     items = _all_items(folders, files)
     total = len(items)
@@ -94,6 +96,7 @@ class LibraryView(ui.View):
         self.refresh_components()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # view library cuma boleh diklik user yang membuka !library
         if interaction.user.id == self.ctx.author.id:
             return True
         await interaction.response.send_message(
@@ -103,6 +106,7 @@ class LibraryView(ui.View):
         return False
 
     async def on_timeout(self):
+        # setelah timeout, tombol/select dimatiin biar view lama ga dipakai
         for item in self.children:
             item.disabled = True
         if self.message:
@@ -112,6 +116,7 @@ class LibraryView(ui.View):
                 pass
 
     def refresh_components(self):
+        # rebuild select menu + tombol paging setiap folder/page berubah
         self.clear_items()
 
         items = _all_items(self.folders, self.files)
@@ -152,6 +157,7 @@ class LibraryView(ui.View):
         self.add_item(LibraryNextButton(disabled=self.page >= max_page - 1))
 
     async def on_select(self, interaction: discord.Interaction):
+        # select folder masuk folder; select file invoke command !play
         idx = int(interaction.data["values"][0])
         kind, name = self.visible_items[idx]
 
@@ -179,6 +185,7 @@ class LibraryBackButton(ui.Button):
         super().__init__(label="Back", style=discord.ButtonStyle.secondary, disabled=disabled,)
 
     async def callback(self, interaction: discord.Interaction):
+        # tombol Back pakai history dulu, fallback ke parent folder
         print("[BUTTON CLICKED] Back")
         view = self.view
         author_id = view.ctx.author.id
@@ -212,6 +219,7 @@ class LibraryPrevButton(ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        # tombol Prev render halaman library sebelumnya
         print("[BUTTON CLICKED] Prev")
         view = self.view
         new_page = view.page - 1
@@ -235,6 +243,7 @@ class LibraryNextButton(ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        # tombol Next render halaman library berikutnya
         print("[BUTTON CLICKED] Next")
         view = self.view
         new_page = view.page + 1

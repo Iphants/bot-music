@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# state global bot, dipakai bareng command/event/player per guild
+
 # state yang kepake pas lagu lagi diputer
 is_shuffle = {}
 current_playing = {}
@@ -31,7 +33,7 @@ cache_preload_started = False
 mode_autoalir = {}
 selera_guild = {}
 lagu_terakhir_lokal = {}
-debug_autoalir = True
+debug_autoalir = False
 history_autoalir = {}
 history_mid_autoalir = {}
 history_jdul_autoalir = {}
@@ -41,3 +43,6 @@ autoalir_state_loaded = False
 last_np_message = {}
 pesan_sejak_np = {}
 np_channel = {}
+
+# session live lyrics per guild
+lirik_sesi = {}

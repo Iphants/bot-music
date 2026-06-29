@@ -56,7 +56,7 @@ def cari_lagu(query):
 
         for key in hasil_fuzzy:
             semua_hasil.extend(semua_file_cache.get(key, []))
-        seen = []  # datanya dikit, list biasa juga cukup
+        seen = []  # dedupe hasil fuzzy sebelum ditampilin !search
         out = []
 
         for item in semua_hasil:

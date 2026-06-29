@@ -6,12 +6,13 @@ import discord
 from collections import deque
 from discord.ext import commands
 from .. import player
+from .. import checks
 from .. import state
 from ..autoalir_store import save_queue
 from .playback import nama_queue
 
 
-# command yang ngurus antrian doang
+# command yang ngurus antrian doang, dipasang dari main.py
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def queue(ctx, page: int = 1):
@@ -94,9 +95,11 @@ def setup(bot: commands.Bot) -> None:
             if not state.play_queue.get(guild_id):
                 return await ctx.send("Antrian kosong kek masa depan lu")
             
+            # nama user-facing buat pesan remove/saran
             def item_name(item):
                 return nama_queue(item)
             
+            # key pencarian remove, gabung nama file/stem/display title
             def item_key(item):
                 if isinstance(item, dict):
                     title = item.get("title", "")
@@ -107,6 +110,7 @@ def setup(bot: commands.Bot) -> None:
                 dplay = nama_queue(item).lower().strip()
                 return f"{base} {stem} {dplay}"
             
+            # hapus dari play_queue dan queue_asli biar urutan tampilan tetap sinkron
             def hapus_playque(pos):
                 daftar = list(state.play_queue[guild_id])
                 removed = daftar.pop(pos)
@@ -178,8 +182,9 @@ def setup(bot: commands.Bot) -> None:
             return await ctx.send("ga ketemu antriannya, pmo mulu sih jadi lupa antriannya sendiri")
 
     @bot.command()
+    @checks.is_dj_or_admin()
     async def clear(ctx):
-        # ngosongin dua queue sekalian
+        # ngosongin dua queue sekalian; aksesnya dibatasi DJ/admin
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             player.ensure_deques(guild_id)

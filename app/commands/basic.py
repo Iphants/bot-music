@@ -5,11 +5,11 @@ from ..autoalir_store import save_queue
 import discord
 import asyncio
 
-# command basic dikumpulin di file ini
+# command basic dipasang main.py untuk help, voice join/leave, dan autoalir toggle
 def setup(bot: commands.Bot) -> None:
     @bot.command()
     async def help(ctx, command_name: str = None):
-        # isi help ditaro map biar gampang dipanggil ulang
+        # sumber data help; harus sinkron dengan command yang dipasang di main.py
         data_tolong = {
             "join": {
                 "deskripsi": "bot masuk ke voice lu berada",
@@ -17,24 +17,44 @@ def setup(bot: commands.Bot) -> None:
                 "contoh": "!join",
             },
             "play": {
-                "deskripsi": "mainin lagu yang lu mau, asal file nya ada di pc gw",
+                "deskripsi": "muter lagu lokal dari folder musik",
                 "cara pake": "!play <nama_lagu>",
                 "contoh": "!play rabbit hole\n!play Shoujo rei",
             },
+            "yt": {
+                "deskripsi": "nyari dan muter lagu langsung dari YouTube",
+                "cara pake": "!yt <judul_lagu>",
+                "contoh": "!yt yoasobi tabun\n!yt alan walker faded",
+            },
+            "thumbnail": {
+                "deskripsi": "ngirim cover lagu yang lagi diputer atau lagu lokal tertentu",
+                "cara pake": "!thumbnail [raw] [nama_lagu]",
+                "contoh": "!thumbnail\n!thumbnail raw\n!thumbnail rabbit hole",
+            },
+            "search": {
+                "deskripsi": "nyari lagu lokal dari cache musik",
+                "cara pake": "!search <query>",
+                "contoh": "!search rabbit hole\n!search shoujo rei",
+            },
+            "pick": {
+                "deskripsi": "milih hasil search berdasarkan nomor",
+                "cara pake": "!pick <nomor>",
+                "contoh": "!pick 1",
+            },
+            "refresh": {
+                "deskripsi": "bangun ulang cache lagu dan metadata buat DJ/admin",
+                "cara pake": "!refresh",
+                "contoh": "!refresh",
+            },
             "queue": {
                 "deskripsi": "ngeliat antrian yang lagi ada",
-                "cara pake": "!queue",
-                "contoh": "!queue",
+                "cara pake": "!queue [halaman]",
+                "contoh": "!queue\n!queue 2",
             },
             "now": {
                 "deskripsi": "ngeliat lu lagi mainin lagu apa",
                 "cara pake": "!now",
                 "contoh": "!now",
-            },
-            "search": {
-                "deskripsi": "nyari lagu lu ada apa kagak",
-                "cara pake": "!search",
-                "contoh": "!search rabbit hole\n!search shoujo rei",
             },
             "pause": {
                 "deskripsi": "nge pause lagu yang lagi lu maiinin",
@@ -43,7 +63,7 @@ def setup(bot: commands.Bot) -> None:
             },
             "resume": {
                 "deskripsi": "ngelanjutin lagu yang di pause",
-                "cara pake": "!pause <saat_terputar_lagu>",
+                "cara pake": "!resume",
                 "contoh": "!resume",
             },
             "shuffle": {
@@ -56,13 +76,8 @@ def setup(bot: commands.Bot) -> None:
                 "cara pake": "!next",
                 "contoh": "!next",
             },
-            "refresh": {
-                "deskripsi": "nge refesh cache klo bot rada dongo",
-                "cara pake": "!refresh",
-                "contoh": "!refresh",
-            },
             "volume": {
-                "deskripsi": "ngatur volume botnya",
+                "deskripsi": "ngatur volume botnya buat DJ/admin",
                 "cara pake": "!volume <level_volume>",
                 "contoh": "!volume 100",
             },
@@ -76,9 +91,14 @@ def setup(bot: commands.Bot) -> None:
                 "cara pake": "!remove <angka_antrian> atau !remove <nama_lagu>",
                 "contoh": "!remove 1 atau !remove telepathy",
             },
+            "clear": {
+                "deskripsi": "ngosongin semua antrian buat DJ/admin",
+                "cara pake": "!clear",
+                "contoh": "!clear",
+            },
             "help": {
                 "deskripsi": "nampilin ginian",
-                "cara pake": "!help ato ga !help<command>",
+                "cara pake": "!help atau !help <command>",
                 "contoh": "!help\n!help play",
             },
             "repeat": {
@@ -86,10 +106,15 @@ def setup(bot: commands.Bot) -> None:
                 "cara pake": "!repeat",
                 "contoh": "!repeat",
             },
-            "yt": {
-                "deskripsi": "nyari dan muter lagu langsung dari YouTube",
-                "cara pake": "!yt <judul_lagu>",
-                "contoh": "!yt yoasobi tabun\n!yt alan walker faded",
+            "lyrics": {
+                "deskripsi": "nampilin potongan lirik lagu yang lagi diputer",
+                "cara pake": "!lyrics",
+                "contoh": "!lyrics",
+            },
+            "lirik": {
+                "deskripsi": "nampilin lirik atau nyalain/matiin live lyrics",
+                "cara pake": "!lirik [live/on/off]",
+                "contoh": "!lirik\n!lirik live\n!lirik off",
             },
             "autoalir": {
                 "deskripsi": "kalau antrian kosong, bot nyari lagu lokal yang masih satu rasa",
@@ -98,23 +123,35 @@ def setup(bot: commands.Bot) -> None:
             },
             "library": {
                 "deskripsi": "mencari folder musik manual (klik-klik folder/lagu)",
-                "cara pake": "!library",
-                "contoh": "!library",
+                "cara pake": "!library [halaman]",
+                "contoh": "!library\n!library 2",
+            },
+            "open": {
+                "deskripsi": "buka folder atau puter lagu dari nomor yang tampil di library",
+                "cara pake": "!open <nomor>",
+                "contoh": "!open 3",
+            },
+            "back": {
+                "deskripsi": "balik ke folder sebelumnya di library",
+                "cara pake": "!back",
+                "contoh": "!back",
             },
         }
 
         if command_name:
-            command_name = command_name.lower()
+            # detail satu command, misalnya !help play atau !help !play
+            command_name = command_name.lower().strip().lstrip("!")
             if command_name in data_tolong:
                 data = data_tolong[command_name]
                 embed = discord.Embed(title=f"Komand: !{command_name}", color=0xFFA500)
                 embed.add_field(name="deskripsi", value=data["deskripsi"], inline=False)
-                embed.add_field(name="cara pake", value=f"'{data['cara pake']}", inline=False)
-                embed.add_field(name="contoh", value=f"'{data['contoh']}", inline=False)
+                embed.add_field(name="cara pake", value=f"`{data['cara pake']}`", inline=False)
+                embed.add_field(name="contoh", value=f"`{data['contoh']}`", inline=False)
                 await ctx.send(embed=embed)
             else:
                 await ctx.send(f"Komand !{command_name} ga ada, ato ga blom gw tambahin")
         else:
+            # daftar umum dipisah per kelompok biar embed Discord gampang discan
             embed = discord.Embed(
                 title="*pertolongan bot*",
                 description="List komand yang gw masukin:",
@@ -123,21 +160,33 @@ def setup(bot: commands.Bot) -> None:
             basic_komand = ""
             playback_komand = ""
             queue_komand = ""
+            lirik_komand = ""
+            library_komand = ""
             komand_lainnya = ""
             for cmd, data in data_tolong.items():
-                line = f"- '!{cmd}' - {data['deskripsi']}\n"
-                if cmd in ["join", "leave", "help"]:
+                line = f"- `!{cmd}` - {data['deskripsi']}\n"
+                if cmd in ["join", "leave", "help", "autoalir"]:
                     basic_komand += line
-                elif cmd in ["play", "search", "refresh", "repeat", "volume", "yt", "library"]:
+                elif cmd in ["play", "yt", "thumbnail", "search", "pick", "refresh", "repeat", "volume"]:
                     playback_komand += line
-                elif cmd in ["pause", "resume", "next", "now", "remove", "shuffle", "autoalir"]:
+                elif cmd in ["queue", "pause", "resume", "next", "now", "remove", "shuffle", "clear"]:
                     queue_komand += line
+                elif cmd in ["lyrics", "lirik"]:
+                    lirik_komand += line
+                elif cmd in ["library", "open", "back"]:
+                    library_komand += line
+                else:
+                    komand_lainnya += line
             if basic_komand:
                 embed.add_field(name="*basic komand*", value=basic_komand, inline=False)
             if playback_komand:
                 embed.add_field(name="*playback komand*", value=playback_komand, inline=False)
             if queue_komand:
                 embed.add_field(name="*queue komand*", value=queue_komand, inline=False)
+            if lirik_komand:
+                embed.add_field(name="*lirik komand*", value=lirik_komand, inline=False)
+            if library_komand:
+                embed.add_field(name="*library komand*", value=library_komand, inline=False)
             if komand_lainnya:
                 embed.add_field(name="*komand yang lain*", value=komand_lainnya, inline=False)
             embed.set_footer(text="pake !help <command> klo lu mau tw lebih lajut")
@@ -146,7 +195,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def autoalir(ctx, mode: str = None):
-        # toggle autoalir per guild lewat command ini
+        # toggle per guild, dibaca player.play_next saat queue habis
         guild_id = ctx.guild.id
 
         if mode is None:
@@ -170,7 +219,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def join(ctx):
-        # join ke voice user, atau pindah kalau beda channel
+        # masuk/pindah voice user, lalu lanjutkan queue tersimpan kalau ada
         if not ctx.author.voice:
             await ctx.send("Masuk voice dulu")
             return
@@ -219,7 +268,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.command()
     async def leave(ctx):
-        # keluar voice sambil beresin state guild
+        # keluar voice sambil simpan queue dan bersihin state runtime guild
         guild_id = ctx.guild.id
 
         async with player.kunci_lagu(guild_id):

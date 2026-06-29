@@ -24,12 +24,14 @@ import (
 
 const iterasi = 500000
 
+// CatatanFile menyimpan sidik jari tiap file yang diawasi snapshoot.
 type CatatanFile struct {
 	Path   string
 	Size   int64
 	SHA256 string
 }
 
+// SnapshootData adalah isi workspace_snapshoot.json untuk guard check/run.
 type SnapshootData struct {
 	Version   int           `json:"version"`
 	CreatedAt string        `json:"created_at"`
@@ -38,6 +40,7 @@ type SnapshootData struct {
 	Files     []CatatanFile `json:"files"`
 }
 
+// RuntimeConfig menyimpan token terenkripsi dan MUSIC_DIR untuk guard run.
 type RuntimeConfig struct {
 	Version        int    `json:"version"`
 	CreatedAt      string `json:"created_at"`
@@ -47,6 +50,7 @@ type RuntimeConfig struct {
 	MusicDir       string `json:"music_dir"`
 }
 
+// inp baca input biasa dari terminal untuk path/pilihan non-rahasia.
 func inp(prompt string) string {
 	fmt.Print(prompt)
 	reader := bufio.NewReader(os.Stdin)
@@ -57,6 +61,7 @@ func inp(prompt string) string {
 	return strings.TrimSpace(text)
 }
 
+// inpkosong baca input rahasia, dipakai password/token guard.
 func inpkosong(prompt string) string {
 	if runtime.GOOS == "windows" {
 		return inpkosongWindows(prompt)
@@ -64,6 +69,7 @@ func inpkosong(prompt string) string {
 	return inpkosongUnix(prompt)
 }
 
+// inpkosongUnix matiin echo terminal di Linux/macOS.
 func inpkosongUnix(prompt string) string {
 	fmt.Print(prompt)
 	disable := exec.Command("stty", "-echo")
@@ -88,6 +94,7 @@ func inpkosongUnix(prompt string) string {
 	return strings.TrimSpace(text)
 }
 
+// inpkosongWindows pakai PowerShell SecureString buat input rahasia.
 func inpkosongWindows(prompt string) string {
 	script := fmt.Sprintf(`
 	$p = Read-Host -Prompt %q -AsSecureString
@@ -106,6 +113,7 @@ func inpkosongWindows(prompt string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// fileAda cek file wajib seperti main.py waktu cari root project.
 func fileAda(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -114,6 +122,7 @@ func fileAda(path string) bool {
 	return !info.IsDir()
 }
 
+// folderAda cek folder wajib seperti app/ dan MUSIC_DIR.
 func folderAda(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -122,6 +131,7 @@ func folderAda(path string) bool {
 	return info.IsDir()
 }
 
+// cariRootProject naik dari cwd sampai ketemu root bot-music.
 func cariRootProject() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -143,6 +153,7 @@ func cariRootProject() (string, error) {
 	return "", fmt.Errorf("root project ga ketemu, jalanin guard dari dalem project")
 }
 
+// pathRel ubah path absolut jadi relatif root buat disimpan di snapshoot.
 func pathRel(root string, path string) string {
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
@@ -151,18 +162,22 @@ func pathRel(root string, path string) string {
 	return filepath.ToSlash(rel)
 }
 
+// dataDir balikin app/data tempat semua file lokal guard/bot disimpan.
 func dataDir(root string) string {
 	return filepath.Join(root, "app", "data")
 }
 
+// snapshootPath lokasi file workspace_snapshoot.json.
 func snapshootPath(root string) string {
 	return filepath.Join(dataDir(root), "workspace_snapshoot.json")
 }
 
+// confgPath lokasi runtime_config.json terenkripsi.
 func confgPath(root string) string {
 	return filepath.Join(dataDir(root), "runtime_config.json")
 }
 
+// Skip memutuskan file/folder yang tidak perlu dipantau guard.
 func Skip(rel string) bool {
 	rel = filepath.ToSlash(rel)
 	skipDirsNames := map[string]bool{
@@ -191,6 +206,7 @@ func Skip(rel string) bool {
 	return false
 }
 
+// pantau memutuskan ekstensi/nama file source yang masuk snapshoot.
 func pantau(rel string) bool {
 	rel = filepath.ToSlash(rel)
 	lower := strings.ToLower(rel)
@@ -211,6 +227,7 @@ func pantau(rel string) bool {
 	return allwdname[base]
 }
 
+// scan jalan dari root dan mengumpulkan file yang dipantau.
 func scan(root string) ([]string, error) {
 	var files []string
 
@@ -249,6 +266,7 @@ func scan(root string) ([]string, error) {
 	return files, nil
 }
 
+// ringkasScan nampilin ringkasan hasil scan sebelum snapshoot disimpan.
 func ringkasScan(files []string) {
 	byTop := map[string]int{}
 	byExt := map[string]int{}
@@ -275,6 +293,7 @@ func ringkasScan(files []string) {
 	printTopMap(byExt, 10)
 }
 
+// printTopMap bantu ringkasScan print top folder/ekstensi.
 func printTopMap(data map[string]int, limit int) {
 	type pair struct {
 		key   string
@@ -298,6 +317,7 @@ func printTopMap(data map[string]int, limit int) {
 	}
 }
 
+// hashfile hitung SHA256 isi file untuk sidik jari workspace.
 func hashfile(fullPath string) (string, error) {
 	file, err := os.Open(fullPath)
 	if err != nil {
@@ -313,6 +333,7 @@ func hashfile(fullPath string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// baca ubah daftar path hasil scan jadi catatan size+hash.
 func baca(root string, files []string) ([]CatatanFile, error) {
 	var hasil []CatatanFile
 
@@ -331,6 +352,7 @@ func baca(root string, files []string) ([]CatatanFile, error) {
 	return hasil, nil
 }
 
+// buatSalt bikin salt random untuk password-derived key.
 func buatSalt() ([]byte, error) {
 	salt := make([]byte, 16)
 	_, err := rand.Read(salt)
@@ -340,6 +362,7 @@ func buatSalt() ([]byte, error) {
 	return salt, nil
 }
 
+// kuncipw derive key dari password+salt untuk HMAC dan AES-GCM.
 func kuncipw(password string, salt []byte) []byte {
 	data := append([]byte(password), salt...)
 	sum := sha256.Sum256(data)
@@ -355,6 +378,7 @@ func kuncipw(password string, salt []byte) []byte {
 	return key
 }
 
+// enkripToken simpan token Discord dalam bentuk cipher text runtime_config.
 func enkripToken(token string, password string) (string, string, string, error) {
 	salt, err := buatSalt()
 
@@ -384,6 +408,7 @@ func enkripToken(token string, password string) (string, string, string, error) 
 	return saltB64, nonceB64, cipherB64, nil
 }
 
+// dekripToken buka token saat guard run setelah password valid.
 func dekripToken(cfg RuntimeConfig, password string) (string, error) {
 	salt, err := base64.StdEncoding.DecodeString(cfg.TokenSaltB64)
 	if err != nil {
@@ -414,6 +439,7 @@ func dekripToken(cfg RuntimeConfig, password string) (string, error) {
 	return string(plain), nil
 }
 
+// datasign ambil bagian snapshoot yang ikut dihitung HMAC.
 func datasign(data SnapshootData) ([]byte, error) {
 	body := struct {
 		Version   int           `json:"version"`
@@ -428,6 +454,7 @@ func datasign(data SnapshootData) ([]byte, error) {
 	return json.Marshal(body)
 }
 
+// ttdSnapshoot buat signature HMAC untuk workspace_snapshoot.json.
 func ttdSnapshoot(data SnapshootData, password string, salt []byte) (string, error) {
 	body, err := datasign(data)
 	if err != nil {
@@ -440,6 +467,7 @@ func ttdSnapshoot(data SnapshootData, password string, salt []byte) (string, err
 	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
+// verivSnapshoot cek signature snapshoot sebelum workspace dibandingkan.
 func verivSnapshoot(data SnapshootData, password string) (bool, error) {
 	if data.SaltB64 == "" || data.Signature == "" {
 		return false, fmt.Errorf("snapshoot blom punya signature, bikin sapshoot ulang")
@@ -455,6 +483,7 @@ func verivSnapshoot(data SnapshootData, password string) (bool, error) {
 	return hmac.Equal([]byte(data.Signature), []byte(signBaru)), nil
 }
 
+// simpenSnapshoot tulis snapshoot dan signature ke app/data.
 func simpenSnapshoot(root string, catatan []CatatanFile, password string) error {
 	dir := dataDir(root)
 	err := os.MkdirAll(dir, 0755)
@@ -484,6 +513,7 @@ func simpenSnapshoot(root string, catatan []CatatanFile, password string) error 
 	return os.Rename(temp, target)
 }
 
+// loadSnapshoot baca snapshoot lama untuk guard check/run.
 func loadSnapshoot(root string) (SnapshootData, error) {
 	target := snapshootPath(root)
 
@@ -502,6 +532,7 @@ func loadSnapshoot(root string) (SnapshootData, error) {
 	return data, nil
 }
 
+// SimpenConfig tulis runtime_config.json terenkripsi secara atomic.
 func SimpenConfig(root string, cfg RuntimeConfig) error {
 	dir := dataDir(root)
 	err := os.MkdirAll(dir, 0755)
@@ -523,6 +554,7 @@ func SimpenConfig(root string, cfg RuntimeConfig) error {
 	return os.Rename(temp, target)
 }
 
+// loadRuntime baca runtime_config.json sebelum guard run menjalankan bot.
 func loadRuntime(root string) (RuntimeConfig, error) {
 	target := confgPath(root)
 	dataMentah, err := os.ReadFile(target)
@@ -546,6 +578,7 @@ func loadRuntime(root string) (RuntimeConfig, error) {
 	return cfg, nil
 }
 
+// mapCatatan ubah slice catatan jadi map path untuk diff cepat.
 func mapCatatan(catatan []CatatanFile) map[string]CatatanFile {
 	hasil := map[string]CatatanFile{}
 	for _, item := range catatan {
@@ -554,6 +587,7 @@ func mapCatatan(catatan []CatatanFile) map[string]CatatanFile {
 	return hasil
 }
 
+// sensorToken masker token supaya log guard tidak bocorin token penuh.
 func sensorToken(token string) string {
 	if len(token) <= 10 {
 		return "********"
@@ -564,6 +598,7 @@ func sensorToken(token string) string {
 	return depan + "..." + blkng
 }
 
+// perbandingan tampilkan file baru/hilang/berubah dibanding snapshoot.
 func perbandingan(lama []CatatanFile, baru []CatatanFile) bool {
 	oldMap := mapCatatan(lama)
 	newMap := mapCatatan(baru)
@@ -624,6 +659,7 @@ func perbandingan(lama []CatatanFile, baru []CatatanFile) bool {
 	return false
 }
 
+// cmdSnapshoot implement command `guard snapshoot`.
 func cmdSnapshoot(root string) int {
 	password := inpkosong("Password snapshoot: ")
 
@@ -675,6 +711,7 @@ func cmdSnapshoot(root string) int {
 	return 0
 }
 
+// cekWokspace validasi signature lalu bandingkan workspace saat ini.
 func cekWokspace(root string, password string) int {
 	snap, err := loadSnapshoot(root)
 	if err != nil {
@@ -713,6 +750,7 @@ func cekWokspace(root string, password string) int {
 	return 0
 }
 
+// cmdCheck implement command `guard check`.
 func cmdCheck(root string) int {
 	fmt.Println("[CHECK] cek workspace...")
 	fmt.Println("[CHECK] root project:", root)
@@ -725,6 +763,7 @@ func cmdCheck(root string) int {
 	return cekWokspace(root, password)
 }
 
+// cmdRun implement command `guard run`: check, decrypt token, jalanin bot.
 func cmdRun(root string) int {
 	fmt.Println("[RUN] cek keamanan workspace dulu...")
 	fmt.Println("[RUN] root project:", root)
@@ -769,6 +808,7 @@ func cmdRun(root string) int {
 	return jalaninbot(root, token, cfg.MusicDir)
 }
 
+// pybin pilih binary Python, bisa dioverride lewat PYTHON_BIN.
 func pybin() string {
 	env := os.Getenv("PYTHON_BIN")
 	if env != "" {
@@ -780,6 +820,7 @@ func pybin() string {
 	return "python3"
 }
 
+// jalaninbot start main.py dengan env DISCORD_TOKEN dan MUSIC_DIR dari guard.
 func jalaninbot(root string, token string, musicDir string) int {
 	py := pybin()
 	cmd := exec.Command(py, "main.py")
@@ -800,6 +841,7 @@ func jalaninbot(root string, token string, musicDir string) int {
 	return 1
 }
 
+// cmdConfig implement command `guard config` untuk setup token/MUSIC_DIR.
 func cmdConfig(root string) int {
 	fmt.Println("[CONFIG] setup config lokal")
 	fmt.Println("[CONFIG] root project:", root)
@@ -870,6 +912,7 @@ func cmdConfig(root string) int {
 	return 0
 }
 
+// folderaud cek cepat apakah MUSIC_DIR punya file audio yang didukung bot.
 func folderaud(path string) bool {
 	extOK := map[string]bool{
 		".mp3":  true,
@@ -902,6 +945,7 @@ func folderaud(path string) bool {
 	return ketemu
 }
 
+// main routing CLI guard ke snapshoot/check/run/config.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Pakai:")

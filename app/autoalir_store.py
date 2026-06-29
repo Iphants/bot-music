@@ -63,6 +63,7 @@ def load_autoalir_state() -> None:
 
 QUEUE_FILE = DATA_DIR/"queue_state.json"
 
+# helper umum buat baca JSON queue tanpa bikin bot crash kalau file rusak
 def _load_queue_data(file_path):
     if not file_path.exists():
         return {}
@@ -74,6 +75,7 @@ def _load_queue_data(file_path):
         print("[QUEUE STORE] gagal load JSON, file rusak/gak valid")
         return {}
 
+# simpan queue guild, dipanggil saat play/yt/remove/clear/leave/after-play
 def save_queue(guild_id) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     data = _load_queue_data(QUEUE_FILE)
@@ -89,6 +91,7 @@ def save_queue(guild_id) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
     temp_file.replace(QUEUE_FILE)
 
+# load queue saat on_ready, current_playing dimasukin lagi ke depan queue
 def load_queue() -> None:
     data = _load_queue_data(QUEUE_FILE)
     if not data:

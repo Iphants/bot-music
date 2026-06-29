@@ -37,7 +37,7 @@ def _tag_ambil(tags, *nama_tags):
                 return value
     return None
 
-# metadata dasar lagu diambil di sini
+# metadata dasar lagu diambil command !play, !now, preload, dan lirik polos
 def get_audio_metadata(file_path):
     audio = File(file_path)
 
@@ -69,7 +69,7 @@ def get_audio_metadata(file_path):
         "duration": int(audio.info.length) if audio.info and audio.info.length else 0
     }
 
-# nyari cover art kalau file punya
+# nyari cover art buat embed lama/preload dan command !thumbnail
 def get_cover(file_path):
     try:
         audio = File(file_path)

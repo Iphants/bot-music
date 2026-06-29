@@ -2,3 +2,5 @@ discord.py
 yt-dlp
 pynacl
 mutagen
+pillow
+requests

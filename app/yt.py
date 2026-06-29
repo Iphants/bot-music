@@ -21,7 +21,7 @@ YTDL_OPTIONS = {
 
 ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
-# ambil info audio dari yt di sini
+# ambil info audio dari yt di sini, dipakai command !yt dan replay/auto-next YT
 async def get_audio_source(query: str):
     loop = asyncio.get_event_loop()
 

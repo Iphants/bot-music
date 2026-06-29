@@ -7,6 +7,7 @@ from app.bot_instance import create_bot
 async def _run_bot() -> None:
     config.setup_inter()
     
+    # command dipasang manual biar modul aktifnya jelas dari entrypoint
     from app.commands import basic, playback, queue_cmds, library_kmnd
     bot = create_bot()  # bikin botnya dulu, baru tempelin yang lain
     runtime.set_bot_loop(asyncio.get_running_loop())

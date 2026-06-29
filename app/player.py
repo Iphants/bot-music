@@ -22,6 +22,7 @@ def kunci_lagu(guild_id):
         state.kunci_guild[guild_id] = asyncio.Lock()
     return state.kunci_guild[guild_id]
 
+# acak play_queue saat shuffle aktif atau setelah lagu selesai
 def shuffle_queue(guild_id):
     q = state.play_queue.get(guild_id)
     if not q or len(q) <= 1:
@@ -31,6 +32,7 @@ def shuffle_queue(guild_id):
     random.shuffle(temp)
     state.play_queue[guild_id] = deque (temp)
 
+# acak ekor queue tanpa ganggu item pertama, siap dipakai kalau butuh preview urutan
 def shuffle_internal(guild_id):
     q = list(state.play_queue[guild_id])
     if len(q) <= 1:
@@ -40,12 +42,14 @@ def shuffle_internal(guild_id):
     random.shuffle(ekor)
     state.play_queue[guild_id] = deque([kepala] + ekor)
 
+# pastikan struktur queue guild ada sebelum command/player ngubah antrean
 def ensure_deques(guild_id):
     if guild_id not in state.queue_asli:
         state.queue_asli[guild_id] = deque()
     if guild_id not in state.play_queue:
         state.play_queue[guild_id] = deque()
 
+# log autoalir cuma keluar kalau state.debug_autoalir dinyalain
 def debug_autoalir(*args):
     if getattr(state, "debug_autoalir", False):
         print("[AUTOALIR DEBUG]", *args)
@@ -53,6 +57,7 @@ def debug_autoalir(*args):
 # batas history autoalir yang agak panjang
 RIWAYAT_AUTOALIR_MID = 18
 
+# catat lagu lokal yang diputar, dipakai autoalir buat rekomendasi berikutnya
 def catat_selera(guild_id, item):
     if not isinstance(item, str):
         return
@@ -77,9 +82,11 @@ def catat_selera(guild_id, item):
 # pecah rel path lagu biar gampang dibandingin folder/artist/album
 _RE_DISC = re.compile(r"^(?:cd|dis[ck])\s*\d+$")
 
+# cek folder disc seperti CD 1/Disc 2 waktu pecah struktur lagu
 def _disc_folder(nama: str) -> bool:
     return bool(_RE_DISC.match(nama.strip().lower()))
 
+# pecah path relatif jadi top/unit/album/disc buat scoring autoalir
 def pecah_struktur_lagu(rel_path: str):
     rel_norm = str(rel_path).replace("\\", "/").strip("/")
     p = Path(rel_norm)
@@ -173,6 +180,7 @@ def penalti_dom(info, dominasi, skor, rincian):
             rincian.append(f"penalti_dominasi_top=-{penalti}")
     return skor
 
+# tahan perpindahan ke OST/varian supaya autoalir ga terasa lompat genre
 def penalti_tipe(tipe_kandidat, tipe_terakhir, tahap, skor, rincian):
     skala = {
         "utama": {"ost": 42, "varian": 28, "varian_lanjut": 18},
@@ -443,6 +451,7 @@ def judul_dasar (rel_path: str) -> str :
     return nama
 
 NP_CHAT_THRESHOLD = 9
+# update atau bikin pesan now-playing, dipakai !now dan auto-next
 async def update_dashboard (channel, embed):
     ch_id = channel.id
     msg_id = state.last_np_message.get(ch_id)
@@ -462,6 +471,7 @@ async def update_dashboard (channel, embed):
     state.pesan_sejak_np[ch_id] = 0
     return msg
 
+# refresh dashboard dari background task setelah play_next ganti lagu
 async def refresh_dashboard_np(guild_id):
     ch_id = state.np_channel.get(guild_id)
     if not ch_id:
@@ -495,6 +505,7 @@ def cancel_idle_leave(guild_id):
         print(f"[cancel_idle_leave] batalin task untuk guild={guild_id}")
         task.cancel()
 
+# jadwalkan bot keluar voice kalau queue habis atau channel kosong
 def schedule_leave(guild_id, voice_client, delay = 15 * 60):
     cancel_idle_leave(guild_id)        
 

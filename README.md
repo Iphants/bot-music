@@ -19,6 +19,9 @@ Fokus utamanya memang file lokal, tapi ada juga playback YouTube, library browse
 - Queue tahan restart (auto-resume saat join)
 - Dashboard now playing yang di-edit, bukan spam pesan
 - Cover album lewat hosting URL (Media Tab tetap bersih)
+- Lirik lokal dari file `.lrc` (one-shot + live yang sinkron)
+- Ambil cover lagu lewat `!thumbnail` (preview / asli)
+- Cooldown, role gate, dan error sanitization buat anti-spam
 
 ## Cara kerja singkat
 
@@ -134,6 +137,54 @@ Upload dibatasi biar sopan ke Catbox: satu upload jalan dalam satu waktu, ada
 jeda minimum antar-upload, dan request untuk file yang sama dalam waktu
 berdekatan cuma diupload sekali.
 
+## Lirik
+
+Banyak file lokal punya pasangan `.lrc` di sebelahnya, jadi bot bisa nampilin
+liriknya.
+
+Ada dua macam `.lrc` yang ke-handle:
+
+- Ber-timestamp (`[mm:ss.xx]`) - lirik kebaca sinkron sama posisi lagu, baris
+  yang lagi jalan ditebelin.
+- Tanpa timestamp - bot tetap nampilin, tapi baris aktifnya cuma ditebak kasar
+  dari durasi. Ini memang ga akurat dan dikasih tanda biar jelas.
+
+Kalau file `.lrc` formatnya bilingual, misalnya baris romaji lalu terjemahan di
+bawahnya, terjemahannya ikut ditampilin sebagai teks kecil.
+
+Command:
+
+- `!lirik` atau `!lyrics` - nampilin potongan lirik sekali, sesuai posisi lagu
+  sekarang.
+- `!lirik live` - bikin panel lirik yang update sendiri ngikutin lagu. Bot cuma
+  ngedit satu pesan, bukan spam. Panel berhenti gerak pas lagu dipause, lanjut
+  lagi pas resume.
+- `!lirik off` - matiin panel live.
+
+Live lyrics jalan sebagai satu sesi per server. Bot ngecek posisi lagu tiap
+setengah detik, tapi cuma ngedit panel paling cepat tiap 2 detik dan cuma kalau
+baris aktifnya berubah. Jadi nggak ngebanjirin API Discord.
+
+Lagu dari YouTube nggak punya `.lrc` lokal, jadi lirik cuma jalan buat file
+lokal.
+
+## Thumbnail cover
+
+`!thumbnail` dipakai buat ngambil cover lagu sebagai gambar. Ini satu-satunya
+fitur cover yang masih pakai attachment, tapi karena cuma muncul kalau diminta
+manual, Media Tab tetap nggak kebanjiran.
+
+Command:
+
+- `!thumbnail` - cover lagu sekarang, versi kecil (dikompres sekitar
+  100-200KB) biar enteng diliat.
+- `!thumbnail raw` - cover asli tanpa kompres, format dan ukuran apa adanya.
+- `!thumbnail <nama lagu>` - cover lagu lokal lain versi kecil, tanpa ganggu
+  lagu yang lagi diputar.
+- `!thumbnail raw <nama lagu>` - cover asli dari lagu itu.
+
+Buat lagu YouTube, thumbnail diambil dari videonya langsung.
+
 ## system
 
 Sekarang bot sudah punya beberapa guard biar nggak gampang salah jalan:
@@ -224,6 +275,33 @@ Di event `on_command_error`, bot nangkep error umum seperti:
 
 Tujuannya biar error nggak muncrat mentah ke user.
 
+## Pembatasan & akses (abuse hardening)
+
+Karena bot ini diarahin buat dipakai rame-rame, ada beberapa batasan biar nggak
+gampang dispam atau disalahgunakan.
+
+Cooldown command yang lumayan makan kerja:
+
+- `!yt` agak ketat karena manggil `yt-dlp` tiap dipanggil.
+- `!thumbnail`, `!play`, `!search`, `!pick`, dan `!lirik` punya cooldown
+  ringan.
+- `!refresh` punya cooldown per server.
+
+Command yang ngubah hal penting dibatasi buat yang berwenang:
+
+- `!refresh`, `!clear`, dan `!volume` cuma bisa dipakai owner bot, admin server
+  (`Manage Server` / administrator), atau user yang punya role `DJ`, `musik`,
+  atau `music`.
+
+Batasan lain:
+
+- Antrean dibatasi maksimal 100 lagu per server.
+- Query `!yt` dibatasi panjangnya.
+- Bot nggak akan nge-ping `@everyone` / `@here` walau ada user yang nyelipin itu
+  di input, karena `allowed_mentions` dimatiin.
+- Pesan error ke user dibuat generik. Detail lengkapnya cuma ke terminal, biar
+  nggak bocorin isi dalaman bot ke chat.
+
 ## Guard launcher
 
 Guard ini dipakai kalau mau jalanin bot lewat jalur yang lebih aman, bukan langsung `python main.py`.
@@ -284,55 +362,63 @@ Kalau jalan langsung lewat python main.py, bot masih bisa bikin local_cnfg.json 
 Kalau jalan lewat guard, yang dipakai guard adalah runtime_config.json.
 
 ### Command yang ada
+
 ### Voice
-|Command | Fungsi |
+| Command | Fungsi |
 | --- | --- |
-| ``!join`` | Bot masuk ke voice channel user |
-| ``!leave`` | Bot keluar dari voice channel |
+| `!join` | Bot masuk ke voice channel user |
+| `!leave` | Bot keluar dari voice channel |
 
 ### Musik lokal & library
-|Command | Fungsi |
+| Command | Fungsi |
 | --- | --- |
-|`!play <judul/path> ` | Putar atau tambahkan lagu lokal ke queue |
-|`!search <judul>` | Cari lagu lokal |
-|`!pick <nomor>` | Putar hasil pencarian |
-|`!library `| Buka library musik |
-|`!library <halaman>` |Buka library pada halaman tertentu |
-|`!open <nomor>` | Buka folder atau putar item yang terlihat |
-|`!back` | Balik ke folder library sebelumnya |
-|`!refresh` |Refresh cache musik |
+| `!play <judul/path>` | Putar atau tambahkan lagu lokal ke queue |
+| `!search <judul>` | Cari lagu lokal |
+| `!pick <nomor>` | Putar hasil pencarian |
+| `!thumbnail [raw] [judul]` | Ambil cover lagu (kecil / asli) |
+| `!library` | Buka library musik |
+| `!library <halaman>` | Buka library pada halaman tertentu |
+| `!open <nomor>` | Buka folder atau putar item yang terlihat |
+| `!back` | Balik ke folder library sebelumnya |
+| `!refresh` | Refresh cache musik (DJ/admin only) |
 
+### Lirik
+| Command | Fungsi |
+| --- | --- |
+| `!lirik` / `!lyrics` | Lihat lirik lagu sekarang |
+| `!lirik live` | Panel lirik yang update sendiri |
+| `!lirik off` | Matikan panel live |
 
 ### Playback & queue
-Command |Fungsi
+| Command | Fungsi |
 | --- | --- |
-|`!queue` | Lihat daftar antrian|
-|`!pause` | Pause lagu |
-|`!resume` | Lanjutkan lagu |
-|`!next` | Skip lagu |
-|`!repeat` | Toggle repeat |
-|`!shuffle` | Toggle shuffle queue |
-|`!remove <angka/nama>` | Hapus item dari queue |
-|`!clear `| Kosongkan queue |
-|`!now` | Lihat lagu yang sedang diputar |
-|`!volume <0-100>` | Atur volume bot (blom fix) |
+| `!queue` | Lihat daftar antrian |
+| `!pause` | Pause lagu |
+| `!resume` | Lanjutkan lagu |
+| `!next` | Skip lagu |
+| `!repeat` | Toggle repeat |
+| `!shuffle` | Toggle shuffle queue |
+| `!remove <angka/nama>` | Hapus item dari queue |
+| `!clear` | Kosongkan queue (DJ/admin only) |
+| `!now` | Lihat lagu yang sedang diputar |
+| `!volume <0-100>` | Atur volume bot (DJ/admin only) |
 
 ### Online
-Command | Fungsi
+| Command | Fungsi |
 | --- | --- |
-`!yt <judul>` | Cari dan putar lagu dari YouTube
+| `!yt <judul>` | Cari dan putar lagu dari YouTube |
 
-###Autoalir
-Command | Fungsi
+### Autoalir
+| Command | Fungsi |
 | --- | --- |
-`!autoalir on` | Nyalakan autoalir
-`!autoalir off` | Matikan autoalir
+| `!autoalir on` | Nyalakan autoalir |
+| `!autoalir off` | Matikan autoalir |
 
-###Bantuan
-Command | Fungsi
+### Bantuan
+| Command | Fungsi |
 | --- | --- |
-`!help` | Tampilkan daftar command
-`!help <command>` | Tampilkan detail satu command
+| `!help` | Tampilkan daftar command |
+| `!help <command>` | Tampilkan detail satu command |
 
 ## Requirement
 Yang penting ada ni:
@@ -347,6 +433,9 @@ Library Python yang kepakai di code sekarang:
 - `discord.py`
 - `yt-dlp`
 - `mutagen`
+- `pynacl`
+- `pillow`
+- `requests`
 
 Kalau mau install cepat, tinggal pakai file requirement yang ada di repo.
 

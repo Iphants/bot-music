@@ -20,10 +20,12 @@ CATBOX_API = "https://catbox.moe/user/api.php"
 UPLOAD_TIMEOUT = 15
 JEDA_MIN = 1.0
 
+# throttle upload cover supaya Catbox ga ditembak paralel dari banyak command
 _sem_upload = asyncio.Semaphore(1)
 _inflight: dict[str, asyncio.Task] = {}
 _last_up = 0.0
 
+# baca cache URL cover yang dipakai embed now-playing/play
 def _load_cache() -> dict:
     if not COVER_URL.exists():
         return {}
@@ -35,6 +37,7 @@ def _load_cache() -> dict:
         print("[COVER CACHE] JSON rusak/ga valid, mulai dari kosong")
         return {}
 
+# simpan cache URL cover secara atomic ke app/data/cover_urls.json
 def _save_cache(data: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True) 
     temp = COVER_URL.with_suffix(".tmp")
@@ -42,15 +45,18 @@ def _save_cache(data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
     temp.replace(COVER_URL)
 
+# normalisasi relative path jadi key stabil antar Windows/Linux
 def _key_dari(file_rel: str) -> str:
     return str(file_rel).replace("\\", "/").strip("/").lower() 
 
+# mtime dipakai buat tahu cover perlu upload ulang atau cache masih valid
 def _mtime_save(full_path: Path):
     try:
         return os.path.getmtime(full_path)
     except OSError:
         return None
 
+# ekstrak cover mentah dari file lokal sebelum diupload ke Catbox
 def _ekstra_cover(full_path: Path):
     try:
         audio = MutagenFile(full_path)
@@ -68,6 +74,7 @@ def _ekstra_cover(full_path: Path):
         print(f"[COVER CACHE] gagal ekstrak cover: {e}")
     return None, None
 
+# request blocking ke Catbox, selalu dipanggil lewat executor dari resolve_cover
 def _up_catbox(cover_bytes: bytes, filename: str = "cover.jpg"):
     try:
         resp = requests.post(
@@ -84,6 +91,7 @@ def _up_catbox(cover_bytes: bytes, filename: str = "cover.jpg"):
         print(f"[COVER CACHE] upload exception: {e}")
         return None
 
+# proses satu cover: ekstrak, upload, lalu tulis URL ke cache
 async def _prosses_key(key: str, full_path: Path, mtime):
     global _last_up
 
@@ -108,6 +116,7 @@ async def _prosses_key(key: str, full_path: Path, mtime):
     _save_cache(data)
     return url
 
+# API utama buat command/playback: balikin URL thumbnail atau None
 async def resolve_cover(file_rel):
     if not file_rel or not isinstance(file_rel, str):
         return None

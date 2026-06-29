@@ -4,6 +4,7 @@ from pathlib import Path
 import discord
 import json
 
+# input token/path interaktif dipakai setup_inter waktu env belum siap
 def input_sensor(prompt: str) -> str:
     # branch windows, biar input token ga aneh
     if os.name == "nt":
@@ -62,9 +63,11 @@ def input_sensor(prompt: str) -> str:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_sett)
     return "".join(chars)
 
+# fallback MUSIC_DIR kalau env/config lokal belum ngasih path
 def default_music_di() -> Path:
     return (Path.cwd() / "Music").resolve()
 
+# dipakai setup_inter buat validasi folder musik sebelum bot jalan
 def ada_isi(path: Path) -> bool:
     ext_ok = (".mp3", ".wav", ".flac", ".m4a")
 
@@ -78,7 +81,8 @@ def ada_isi(path: Path) -> bool:
         return False
     return False
 
-def setup_inter() -> None: # setup awal env lokal, aman dipanggil tiap start
+# setup awal env lokal, dipanggil main.py tiap start
+def setup_inter() -> None:
     local_config = load_local()
     apply_config(local_config)
 
@@ -129,6 +133,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 LOCAL_CNFG = DATA_DIR / "local_cnfg.json"
 
+# baca config lokal yang dibuat setup_inter / guard fallback
 def load_local() -> dict:
     if not LOCAL_CNFG.exists():
         return{}
@@ -140,6 +145,7 @@ def load_local() -> dict:
         print("[CONFIG] local_config.json rusak / gagal di baca, bakal di setup ulang")
         return {}
     
+# tulis config lokal secara atomic biar file ga gampang corrupt
 def save_local (data: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -148,6 +154,7 @@ def save_local (data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
     temp_file.replace(LOCAL_CNFG)
 
+# masukin config lokal ke env kalau env asli belum diset
 def apply_config (data: dict) -> None:
     token = data.get("DISCORD_TOKEN")
     music_dir = data.get("MUSIC_DIR")

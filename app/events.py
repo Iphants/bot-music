@@ -35,24 +35,30 @@ def setup(bot: commands.Bot) -> None:
             state.cache_preload_started = True
             asyncio.create_task(preload_cache_async())
 
-    @bot.event 
+    @bot.event
     async def on_command_error(ctx, error):
-        # error command ditampung sini biar ga muncrat mentah ke user
+        # semua error command difilter di sini biar chat ga kebocoran traceback
         embed = discord.Embed(title="Error", color=discord.Color.red())
+        
         if isinstance(error, commands.CommandNotFound):
             return
         elif isinstance(error, commands.MissingRequiredArgument):
             embed.description = f"Argumen '{error.param.name}' wajib diisi"
         elif isinstance(error, commands.CommandOnCooldown):
-            embed.description = f"Sabar jembut, coba lagi pas '{error.retry_after:.2f} detik."
+            embed.description = f"Sabar jembut, coba lagi pas {error.retry_after:.2f} detik."
         elif isinstance(error, commands.MissingPermissions):
-            embed.description = f"Permission lu kurang: '{','.join(error.missing_permissions)}"
+            embed.description = f"Permission lu kurang: {', '.join(error.missing_permissions)}"
+        elif isinstance(error, commands.CheckFailure):
+            embed.description = "lu ga punya akses buat command ini (butuh role DJ / admin server)"
         elif isinstance(error, commands.CommandInvokeError):
-            original = error.original
-            embed.description = f"error internal: {error.original}"
+            embed.description = "error internal, coba lagi atau lapor admin"
+            print(f"[ERROR INTERNAL] Command !{ctx.command} error:")
             print(traceback.format_exc())
+            
         else:
-            embed.description = f"error gajelas: {error}"
+            embed.description = "error internal, coba lagi atau lapor admin"
+            print(f"[ERROR UNKNOWN] Command !{ctx.command} error: {error}")
+            
         try:
             await ctx.send(embed=embed)
         except Exception:
@@ -98,6 +104,7 @@ def setup(bot: commands.Bot) -> None:
 
     @bot.listen("on_message")
     async def hitung_message_np(message):
+        # hitung chat setelah dashboard supaya update_dashboard tahu kapan bikin pesan baru
         if message.author.bot or not message.guild:
             return
         ch_id = message.channel.id
