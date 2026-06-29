@@ -9,3 +9,5 @@ guard.exe
 test.py
 structure.txt
 CHANGE_PLAN.md
+poc_*.py
+test.py
