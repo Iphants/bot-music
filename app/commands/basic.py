@@ -135,6 +135,11 @@ def setup(bot: commands.Bot) -> None:
                 "cara pake": "!back",
                 "contoh": "!back",
             },
+            "sp": {
+                "deskripsi": "cari lagu/playlist/album spotify, audio diambil dari youtube<masih bingung gmna ngambil langsung dari spotify>",
+                "cara pake": "!sp <judul> atau !sp <link spotify>",
+                "contoh": "!sp melukis senja\n!sp https://open.spotify.com/playlist/...",
+            },
         }
 
         if command_name:
@@ -173,7 +178,7 @@ def setup(bot: commands.Bot) -> None:
                 elif cmd in [
                     "play",
                     "yt",
-                    "thumbnail",
+                    "spthumbnail",
                     "search",
                     "pick",
                     "refresh",

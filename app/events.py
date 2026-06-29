@@ -53,7 +53,11 @@ def setup(bot: commands.Bot) -> None:
         elif isinstance(error, commands.CommandInvokeError):
             embed.description = "error internal, coba lagi atau lapor admin"
             print(f"[ERROR INTERNAL] Command !{ctx.command} error:")
-            print(traceback.format_exc())
+            traceback.print_exception(
+                type(error.original),
+                error.original,
+                error.original.__traceback__,
+            )
         else:
             embed.description = "error internal, coba lagi atau lapor admin"
             print(f"[ERROR UNKNOWN] Command !{ctx.command} error: {error}")

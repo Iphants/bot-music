@@ -14,7 +14,8 @@ from .. import config
 from .. import music_cache
 from .. import player
 from .. import state
-from ..yt import get_audio_source
+from .. import spotify
+from ..yt import get_audio_source, cari_yt
 from functools import partial
 from ..metadata import get_audio_metadata, get_cover
 from ..autoalir_store import save_queue
@@ -476,6 +477,123 @@ def setup(bot: commands.Bot) -> None:
             state.current_playing.pop(guild_id, None)
             await ctx.send("error internal pas mau play yt, coba lagi / lapor admin")
             print(f"[YT PLAY ERROR] {e}")
+            print(traceback.format_exc())
+
+    @bot.command(name="sp")
+    @commands.cooldown(1, 12, commands.BucketType.user)
+    async def sp(ctx, *, query: str):
+        voice_client = ctx.voice_client
+        if not voice_client or not voice_client.is_connected():
+            await ctx.send("Botnya gada di dalem, pake !join")
+            return
+
+        if not spotify.aktif():
+            await ctx.send("fitur spotify ga aktif (sp_dc blom diset)")
+            return
+
+        guild_id = ctx.guild.id
+        if len(query) > MAX_YT_QUERY:
+            await ctx.send("query kepanjangan, singaktin")
+            return
+
+        player.cancel_idle_leave(guild_id)
+        async with player.kunci_lagu(guild_id):
+            player.ensure_deques(guild_id)
+
+        is_link = "open.spotify.com/" in query or query.startswith("spotify:")
+        loop = asyncio.get_running_loop()
+
+        if is_link:
+            await ctx.send("baca dari spotify...")
+            nama_koleks, daftar = await loop.run_in_executor(
+                None, spotify.resolve, query
+            )
+
+            if not daftar:
+                await ctx.send("gabisa baca link spotify nya (track/playlist/album?)")
+                return
+        else:
+            await ctx.send(f"cari di spotify: {query}...")
+            hasil = await loop.run_in_executor(None, spotify.cari_track, query)
+            if not hasil:
+                await ctx.send("ga nemu di spotify")
+                return
+            nama_koleks, daftar = None, [hasil]
+
+        items = []
+
+        for judul, artist, dur_ms in daftar:
+            dur = int(dur_ms // 1000) if dur_ms else None
+            items.append(
+                {
+                    "title": judul,
+                    "uploader": artist,
+                    "duration": dur,
+                    "thumbnail": None,
+                    "sumber": "spotify",
+                    "webpage_url": None,
+                    "yt_query": f"{judul} {artist} audio",
+                }
+            )
+
+        sisa_slot = MAX_QUEUE - len(state.play_queue.get(guild_id, []))
+        if sisa_slot <= 0:
+            await ctx.send(f"antrean dh penuh({MAX_QUEUE} lagu)")
+            return
+        if len(items) > sisa_slot:
+            items = items[:sisa_slot]
+            await ctx.send(f"antrean kepotong, cuma masuk {sisa_slot} lagu")
+
+        lgi_main = voice_client.is_playing() or voice_client.is_paused()
+
+        if lgi_main:
+            for it in items:
+                state.queue_asli[guild_id].append(it)
+                state.play_queue[guild_id].append(it)
+            save_queue(guild_id)
+            if len(items) == 1:
+                desc = f"{items[0]['title']}\noleh {items[0]['uploader']}"
+                judul_embed = "Masuk antrean"
+            else:
+                desc = f"{len(items)} lagu dari **{nama_koleks}**"
+                judul_embed = "Playlist masuk antrean"
+            embed = discord.Embed(title=judul_embed, description=desc, color=0x1DB954)
+            await ctx.send(embed=embed)
+            return
+
+        pertama = items[0]
+        for it in items[1:]:
+            state.queue_asli[guild_id].append(it)
+            state.play_queue[guild_id].append(it)
+
+        try:
+            data = await cari_yt(
+                pertama["yt_query"], target_durasi=pertama.get("duration")
+            )
+            if not data or not data.get("webpage_url"):
+                await ctx.send("ga nemu audio lagu pertamanya")
+                return
+            pertama["webpage_url"] = data["webpage_url"]
+            pertama["thumbnail"] = data.get("thumbnail")
+
+            volume = state.tingkat_suara.get(guild_id, 0.5)
+            source = player.build_audio(data["url"], volume=volume)
+            state.current_playing[guild_id] = pertama
+            voice_client.play(
+                source, after=partial(player.after_play, guild_id, voice_client)
+            )
+            state.started_at[guild_id] = time.time()
+            state.paused_at.pop(guild_id, None)
+            state.total_pause[guild_id] = 0
+            save_queue(guild_id)
+            state.np_channel[guild_id] = ctx.channel.id
+            embed = await create_embed_np(guild_id)
+            await player.update_dashboard(ctx.channel, embed)
+            if len(items) > 1:
+                await ctx.send(f"+ {len(items) - 1} lagu dari playlist masuk antrean")
+        except Exception:
+            state.current_playing.pop(guild_id, None)
+            await ctx.send("error internal pas mau play, coba lagi/lapor admin")
             print(traceback.format_exc())
 
     @bot.command()

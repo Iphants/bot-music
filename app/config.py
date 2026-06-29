@@ -159,6 +159,7 @@ def apply_config(data: dict) -> None:
     token = data.get("DISCORD_TOKEN")
     music_dir = data.get("MUSIC_DIR")
     ffmpeg_path = data.get("FFMPEG_PATH")
+    sp_dc = data.get("SPOTIFY_SP_DC")
 
     if token and not os.environ.get("DISCORD_TOKEN"):
         os.environ["DISCORD_TOKEN"] = str(token)
@@ -166,6 +167,8 @@ def apply_config(data: dict) -> None:
         os.environ["MUSIC_DIR"] = str(music_dir)
     if ffmpeg_path and not os.environ.get("FFMPEG_PATH"):
         os.environ["FFMPEG_PATH"] = str(ffmpeg_path)
+    if sp_dc and not os.environ.get("SPOTIFY_SP_DC"):
+        os.environ["SPOTIFY_SP_DC"] = str(sp_dc)
 
 
 def build_intents() -> discord.Intents:
@@ -186,6 +189,10 @@ def music_root_dir() -> Path:
 
 def ffmpeg_executable() -> str:
     return os.environ.get("FFMPEG_PATH", "ffmpeg")
+
+
+def spotify_sp_dc() -> str | None:
+    return os.environ.get("SPOTIFY_SP_DC") or None
 
 
 def discord_token() -> str:

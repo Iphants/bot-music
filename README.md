@@ -1,7 +1,7 @@
 # Discord Local Music Bot
 
 Bot Discord buat muter musik lokal pakai `discord.py`.
-Fokus utamanya memang file lokal, tapi ada juga playback YouTube, library browser, autoalir, metadata lagu, cover album, dan cache biar bot nggak ngos-ngosan tiap command.
+Fokus utamanya memang file lokal, tapi ada juga playback YouTube, bridge Spotify ke YouTube, library browser, autoalir, metadata lagu, cover album, dan cache biar bot nggak ngos-ngosan tiap command.
 
 ## Yang bisa dipakai sekarang
 
@@ -12,6 +12,7 @@ Fokus utamanya memang file lokal, tapi ada juga playback YouTube, library browse
 - Metadata lagu: title, artist, album, duration
 - Cover album di embed
 - YouTube playback lewat `!yt`
+- Spotify search/link lewat `!sp` (metadata dari Spotify, audio dicari di YouTube)
 - Autoalir lagu lokal saat queue habis
 - Simpan state autoalir ke file lokal
 - Volume, repeat, shuffle, remove, clear queue
@@ -27,14 +28,15 @@ Fokus utamanya memang file lokal, tapi ada juga playback YouTube, library browse
 
 Alurnya begini:
 
-1. User jalanin `!play`, `!search`, `!library`, atau `!yt`
+1. User jalanin `!play`, `!search`, `!library`, `!yt`, atau `!sp`
 2. Bot ambil data lagu dari cache folder musik
 3. Kalau lagu lokal, metadata dan cover dibaca lalu disimpan ke cache
-4. Lagu masuk queue guild
-5. Kalau belum ada yang muter, bot langsung play
-6. Setelah lagu selesai, callback lanjut ke lagu berikutnya
-7. Kalau queue habis dan `autoalir` nyala, bot nyari lagu lokal yang masih nyambung
-8. Kalau bot idle terlalu lama, bot keluar dari voice
+4. Kalau sumbernya Spotify, bot ambil metadata Spotify dulu lalu cari audio paling cocok di YouTube
+5. Lagu masuk queue guild
+6. Kalau belum ada yang muter, bot langsung play
+7. Setelah lagu selesai, callback lanjut ke lagu berikutnya
+8. Kalau queue habis dan `autoalir` nyala, bot nyari lagu lokal yang masih nyambung
+9. Kalau bot idle terlalu lama, bot keluar dari voice
 
 ## Autoalir
 
@@ -74,7 +76,7 @@ Yang disimpen per guild:
 
 - `queue_asli` dan `play_queue`
 - lagu yang lagi diputar (`current_playing`)
-- item lokal maupun item YouTube
+- item lokal, YouTube, maupun item Spotify yang diputar lewat YouTube
 
 Cara kerjanya:
 
@@ -165,8 +167,7 @@ Live lyrics jalan sebagai satu sesi per server. Bot ngecek posisi lagu tiap
 setengah detik, tapi cuma ngedit panel paling cepat tiap 2 detik dan cuma kalau
 baris aktifnya berubah. Jadi nggak ngebanjirin API Discord.
 
-Lagu dari YouTube nggak punya `.lrc` lokal, jadi lirik cuma jalan buat file
-lokal.
+Kalau file `.lrc` lokal ga ada, bot otomatis nyari lirik ke LRCLIB (online) pakai judul + artist + durasi. Lagu YouTube dan lagu Spotify (!sp) juga ikut kebantu fallback ini, jadi lirik nggak lagi terbatas ke file lokal yang punya .lrc. Hasil LRCLIB di-cache lokal biar nggak query berulang.
 
 ## Thumbnail cover
 
@@ -185,6 +186,32 @@ Command:
 
 Buat lagu YouTube, thumbnail diambil dari videonya langsung.
 
+## Spotify bridge
+
+`!sp` dipakai buat cari lagu dari Spotify atau baca link Spotify. Bot nggak
+ngambil audio langsung dari Spotify. Spotify cuma dipakai buat metadata
+judul/artist/durasi, lalu audio dicari lagi di YouTube lewat `yt-dlp`.
+
+Yang bisa dipakai:
+
+- `!sp <judul>` - cari track Spotify, ambil hasil pertama, lalu putar audio yang
+  cocok dari YouTube.
+- `!sp <link track>` - baca satu track Spotify.
+- `!sp <link track>` - Buat playlist/album, lagu pertama langsung dicari di YouTube biar cepet bunyi, sisanya baru dicari pas gilirannya diputar (lazy), jadi playlist gede nggak bikin command nge-freeze nyari semua di depan.
+
+- `!sp <link album>` - masukin track album ke antrean.
+
+Fitur ini butuh cookie `sp_dc` dari Spotify. Atau taro di app/data/local_cnfg.json dengan key "SPOTIFY_SP_DC", sejajar sama DISCORD_TOKEN. Dua-duanya kebaca, env var menang kalau dua-duanya ada.
+
+```bash
+SPOTIFY_SP_DC=isi_cookie_sp_dc
+```
+
+Kalau `SPOTIFY_SP_DC` belum diset atau library Spotify belum ke-install,
+command `!sp` bakal nolak jalan dengan pesan fitur Spotify belum aktif.
+
+Karena audio dicari di YouTube by judul+artist+durasi, versi yang kepilih nggak selalu persis yang dimaksud (bisa kena cover/versi lain kalau metadata-nya mirip). Buat versi spesifik, pakai `!yt <link>` langsung.
+
 ## system
 
 Sekarang bot sudah punya beberapa guard biar nggak gampang salah jalan:
@@ -196,6 +223,7 @@ Bagian ini ngecek:
 
 - `DISCORD_TOKEN` ada atau belum
 - `MUSIC_DIR` ada atau belum
+- `SPOTIFY_SP_DC` opsional, cuma dibutuhkan kalau mau pakai `!sp`
 - folder musik valid atau tidak
 - folder musik punya file audio atau tidak
 
@@ -283,6 +311,7 @@ gampang dispam atau disalahgunakan.
 Cooldown command yang lumayan makan kerja:
 
 - `!yt` agak ketat karena manggil `yt-dlp` tiap dipanggil.
+- `!sp` juga agak ketat karena baca Spotify lalu resolve audio ke YouTube.
 - `!thumbnail`, `!play`, `!search`, `!pick`, dan `!lirik` punya cooldown
   ringan.
 - `!refresh` punya cooldown per server.
@@ -296,7 +325,7 @@ Command yang ngubah hal penting dibatasi buat yang berwenang:
 Batasan lain:
 
 - Antrean dibatasi maksimal 100 lagu per server.
-- Query `!yt` dibatasi panjangnya.
+- Query `!yt` dan `!sp` dibatasi panjangnya.
 - Bot nggak akan nge-ping `@everyone` / `@here` walau ada user yang nyelipin itu
   di input, karena `allowed_mentions` dimatiin.
 - Pesan error ke user dibuat generik. Detail lengkapnya cuma ke terminal, biar
@@ -407,6 +436,7 @@ Kalau jalan lewat guard, yang dipakai guard adalah runtime_config.json.
 | Command | Fungsi |
 | --- | --- |
 | `!yt <judul>` | Cari dan putar lagu dari YouTube |
+| `!sp <judul/link>` | Cari Spotify atau baca link track/playlist/album, lalu putar via YouTube |
 
 ### Autoalir
 | Command | Fungsi |
@@ -436,6 +466,7 @@ Library Python yang kepakai di code sekarang:
 - `pynacl`
 - `pillow`
 - `requests`
+- `spotifyscraper`
 
 Kalau mau install cepat, tinggal pakai file requirement yang ada di repo.
 
@@ -445,6 +476,7 @@ Kalau mau install cepat, tinggal pakai file requirement yang ada di repo.
 $env:DISCORD_TOKEN="YOUR_TOKEN"
 $env:MUSIC_DIR="D:\Music"
 $env:FFMPEG_PATH="C:\ffmpeg\bin\ffmpeg.exe"  # opsional
+$env:SPOTIFY_SP_DC="YOUR_SP_DC_COOKIE"        # opsional, buat !sp
 python main.py
 ```
 
@@ -454,6 +486,7 @@ Linux / macOS
 export DISCORD_TOKEN="YOUR_TOKEN"
 export MUSIC_DIR="$HOME/Music"
 export FFMPEG_PATH="/usr/bin/ffmpeg"   # opsional
+export SPOTIFY_SP_DC="YOUR_SP_DC_COOKIE" # opsional, buat !sp
 python3 main.py
 
 ```
@@ -504,12 +537,27 @@ Event bot, preload cache, cleanup voice, load state autoalir
 - `app/player.py`
 
 Alur play utama, queue, autoalir, after-play callback
+- `app/yt.py`
+
+Resolve audio YouTube dan pencocokan hasil untuk Spotify bridge
+- `app/spotify.py`
+
+Baca metadata Spotify track / playlist / album dari `sp_dc`
 - `app/music_cache.py`
 
  Scan folder musik dan fuzzy search
 - `app/metadata.py`
 
 Baca metadata audio dan cover
+- `app/cover_cache.py`
+
+Upload/cache URL cover album ke Catbox
+- `app/lyrics.py`
+
+Parser `.lrc`, one-shot lyrics, dan live lyrics
+- `app/checks.py`
+
+Role gate untuk command DJ/admin
 - `app/autoalir_store.py`
 
 Simpan / load state autoalir ke JSON

@@ -4,3 +4,4 @@ pynacl
 mutagen
 pillow
 requests
+spotifyscraper
