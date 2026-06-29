@@ -5,6 +5,7 @@ import asyncio
 import discord
 from .metadata import get_audio_metadata
 from . import state
+from . import lrclib
 from pathlib import Path
 from . import config
 
@@ -63,11 +64,46 @@ def _parse_synced(teks: str):
     return entri
 
 
+def _parse_teks(teks: str | None):
+    if not teks:
+        return None
+
+    if _RE_WAKTU.search(teks):
+        entri = _parse_synced(teks)
+        return ("synced", entri) if entri else None
+
+    baris = [
+        b.strip()
+        for b in teks.splitlines()
+        if b.strip() and not _RE_META.match(b.strip())
+    ]
+    return ("polos", baris) if baris else None
+
+
+def _muat_dari_lrclib(full: Path):
+    metdat = state.metadata_cache.get(str(full)) or get_audio_metadata(full)
+    if not metdat:
+        return None
+    judul = metdat.get("title")
+    if not judul or judul == "Unknown":
+        return None
+    teks = lrclib.ambil_lirik(judul, metdat.get("artist"), metdat.get("duration"))
+    return _parse_teks(teks)
+
+
+def muat_lirik_yt(yt_item: dict):
+    judul = yt_item.get("title")
+    if not judul:
+        return None
+    teks = lrclib.ambil_lirik(judul, yt_item.get("uploader"), yt_item.get("duration"))
+    return _parse_teks(teks)
+
+
 def muat_lirik(audio_rel_path: str):
     full = config.music_root_dir() / audio_rel_path
     lrc = _cari_lrc(full)
     if not lrc:
-        return None
+        return _muat_dari_lrclib(full)
     try:
         teks = lrc.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -138,14 +174,25 @@ def _track_id(currnet):
 
 def _muat_live(current):
     if isinstance(current, dict):
-        return "yt", None, None
+        durasi = current.get("duration")
+        hasil = muat_lirik_yt(current)
+
+        if not hasil:
+            return "yt", None, durasi
+
+        jenis, data = hasil
+        return jenis, data, durasi
+
     file_rel = str(current)
     hasil = muat_lirik(file_rel)
+
     full = config.music_root_dir() / file_rel
     metdat = state.metadata_cache.get(str(full)) or get_audio_metadata(full)
     duration = metdat.get("duration") if metdat else None
+
     if not hasil:
         return "none", None, duration
+
     jenis, data = hasil
     return jenis, data, duration
 

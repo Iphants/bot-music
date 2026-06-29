@@ -4,6 +4,7 @@ from pathlib import Path
 import discord
 import json
 
+
 def input_sensor(prompt: str) -> str:
     if os.name == "nt":
         import msvcrt

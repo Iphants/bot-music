@@ -216,34 +216,52 @@ async def _lirik_oneshot(ctx, guild_id):
     if not current:
         await ctx.send("gada lagu yang diputer")
         return
-    if isinstance(current, dict):
-        await ctx.send("Lagu YT gada lirik lokal")
-        return
-    file_rel = str(current)
-    hasil = lyr.muat_lirik(file_rel)
-    if not hasil:
-        await ctx.send("Lirik ga ketemu buat lagu ini")
-        return
-    jenis, data = hasil
+
     elapsed = elaps_lagu(guild_id) or 0
-    if jenis == "synced":
-        pot, idx_on = lyr.potong_synced(data, elapsed)
-        out = []
-        for i, (t, utama, subs) in enumerate(pot):
-            u = utama or "♪"
-            out.append(f"**> {u}**" if i == idx_on else u)
-            for s in subs:
-                out.append(f"-# {s}")
-        await ctx.send("\n".join(out))
+    duration = None
+
+    if isinstance(current, dict):
+        hasil = lyr.muat_lirik_yt(current)
+        duration = current.get("duration")
+
+        if not hasil:
+            await ctx.send("lagu YT ini ga ketemu liriknya")
+            return
     else:
+        file_rel = str(current)
+        hasil = lyr.muat_lirik(file_rel)
+
+        if not hasil:
+            await ctx.send("Lirik ga ketemu buat lagu ini")
+            return
+
         full = config.music_root_dir() / file_rel
         metdat = state.metadata_cache.get(str(full)) or get_audio_metadata(full)
         duration = metdat.get("duration") if metdat else None
-        pot, idx_on = lyr.potong_polos(data, elapsed, duration)
-        out = ["-# (lirik ga ada timestamp, nebak dari durasi)"]
-        for i, b in enumerate(pot):
-            out.append(f"**> {b}**" if i == idx_on else b)
+
+    jenis, data = hasil
+
+    if jenis == "synced":
+        pot, idx_on = lyr.potong_synced(data, elapsed)
+        out = []
+
+        for i, (t, utama, subs) in enumerate(pot):
+            u = utama or "♪"
+            out.append(f"**> {u}**" if i == idx_on else u)
+
+            for s in subs:
+                out.append(f"-# {s}")
+
         await ctx.send("\n".join(out))
+        return
+
+    pot, idx_on = lyr.potong_polos(data, elapsed, duration)
+    out = ["-# (lirik ga ada timestamp, nebak dari durasi)"]
+
+    for i, b in enumerate(pot):
+        out.append(f"**> {b}**" if i == idx_on else b)
+
+    await ctx.send("\n".join(out))
 
 
 def setup(bot: commands.Bot) -> None:
