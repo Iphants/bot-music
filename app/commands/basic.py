@@ -136,9 +136,14 @@ def setup(bot: commands.Bot) -> None:
                 "contoh": "!back",
             },
             "sp": {
-                "deskripsi": "cari lagu/playlist/album spotify, audio diambil dari youtube<masih bingung gmna ngambil langsung dari spotify>",
+                "deskripsi": "cari lagu/playlist/album Spotify, audio diambil dari YouTube",
                 "cara pake": "!sp <judul> atau !sp <link spotify>",
                 "contoh": "!sp melukis senja\n!sp https://open.spotify.com/playlist/...",
+            },
+            "spfix": {
+                "deskripsi": "paksa lagu Spotify yang lagi diputer supaya pakai link YouTube tertentu buat DJ/admin",
+                "cara pake": "!spfix <link_youtube>",
+                "contoh": "!spfix https://www.youtube.com/watch?v=...",
             },
         }
 
@@ -178,7 +183,9 @@ def setup(bot: commands.Bot) -> None:
                 elif cmd in [
                     "play",
                     "yt",
-                    "spthumbnail",
+                    "sp",
+                    "spfix",
+                    "thumbnail",
                     "search",
                     "pick",
                     "refresh",

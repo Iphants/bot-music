@@ -11,7 +11,7 @@ from discord import FFmpegPCMAudio, PCMVolumeTransformer
 from . import config
 from . import runtime
 from . import state
-from .yt import get_audio_source, cari_yt
+from .yt import get_audio_source, cari_yt_sp
 from .autoalir_store import save_autoalir_state, save_queue
 
 
@@ -688,10 +688,15 @@ async def play_next(guild_id, voice_client):
                     title = item["title"]
                     vol = state.tingkat_suara.get(guild_id, 0.5)
                     if not item.get("webpage_url"):
-                        q = item.get("yt_query") or item.get("title")
-                        cari = await cari_yt(q, target_durasi=item.get("duration"))
+                        cari = await cari_yt_sp(
+                            item.get("title"),
+                            item.get("uploader"),
+                            item.get("duration"),
+                        )
                         if not cari or not cari.get("webpage_url"):
-                            print(f"[PLAYNEXT] gagal resolve YT buat: {q}")
+                            print(
+                                f"[PLAYNEXT] gagal resolve YT buat: {item.get('title')}"
+                            )
                             continue
                         item["webpage_url"] = cari["webpage_url"]
                         if not item.get("thumbnail"):

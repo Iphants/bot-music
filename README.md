@@ -13,6 +13,7 @@ Fokus utamanya memang file lokal, tapi ada juga playback YouTube, bridge Spotify
 - Cover album di embed
 - YouTube playback lewat `!yt`
 - Spotify search/link lewat `!sp` (metadata dari Spotify, audio dicari di YouTube)
+- Override hasil YouTube buat lagu Spotify lewat `!spfix`
 - Autoalir lagu lokal saat queue habis
 - Simpan state autoalir ke file lokal
 - Volume, repeat, shuffle, remove, clear queue
@@ -197,9 +198,12 @@ Yang bisa dipakai:
 - `!sp <judul>` - cari track Spotify, ambil hasil pertama, lalu putar audio yang
   cocok dari YouTube.
 - `!sp <link track>` - baca satu track Spotify.
-- `!sp <link track>` - Buat playlist/album, lagu pertama langsung dicari di YouTube biar cepet bunyi, sisanya baru dicari pas gilirannya diputar (lazy), jadi playlist gede nggak bikin command nge-freeze nyari semua di depan.
-
-- `!sp <link album>` - masukin track album ke antrean.
+- `!sp <link playlist>` - lagu pertama langsung dicari di YouTube biar cepet
+  bunyi, sisanya baru dicari pas gilirannya diputar (lazy), jadi playlist gede
+  nggak bikin command nge-freeze nyari semua di depan.
+- `!sp <link album>` - masukin track album ke antrean dengan cara lazy yang sama.
+- `!spfix <link YouTube>` - buat DJ/admin, paksa lagu Spotify yang lagi diputar
+  supaya nanti pakai link YouTube itu lagi.
 
 Fitur ini butuh cookie `sp_dc` dari Spotify. Atau taro di app/data/local_cnfg.json dengan key "SPOTIFY_SP_DC", sejajar sama DISCORD_TOKEN. Dua-duanya kebaca, env var menang kalau dua-duanya ada.
 
@@ -211,6 +215,8 @@ Kalau `SPOTIFY_SP_DC` belum diset atau library Spotify belum ke-install,
 command `!sp` bakal nolak jalan dengan pesan fitur Spotify belum aktif.
 
 Karena audio dicari di YouTube by judul+artist+durasi, versi yang kepilih nggak selalu persis yang dimaksud (bisa kena cover/versi lain kalau metadata-nya mirip). Buat versi spesifik, pakai `!yt <link>` langsung.
+
+Kalau `!sp` salah milih audio YouTube, putar lagunya dulu lalu pakai `!spfix <link YouTube>` saat lagu Spotify itu masih jalan. Mapping manualnya disimpan lokal di `app/data/yt_override.json`, jadi tidak perlu ikut Git.
 
 ## system
 
@@ -382,6 +388,8 @@ File lokal yang bisa muncul:
 - app/data/runtime_config.json
 - app/data/queue_state.json
 - app/data/cover_urls.json
+- app/data/lrclib_cache.json
+- app/data/yt_override.json
 
 
 File-file itu dipakai untuk berbagai state lokal, config, snapshoot workspace, dan cache.
@@ -437,6 +445,7 @@ Kalau jalan lewat guard, yang dipakai guard adalah runtime_config.json.
 | --- | --- |
 | `!yt <judul>` | Cari dan putar lagu dari YouTube |
 | `!sp <judul/link>` | Cari Spotify atau baca link track/playlist/album, lalu putar via YouTube |
+| `!spfix <link YouTube>` | Simpan override YouTube buat lagu Spotify yang lagi diputar (DJ/admin only) |
 
 ### Autoalir
 | Command | Fungsi |
@@ -463,12 +472,16 @@ Library Python yang kepakai di code sekarang:
 - `discord.py`
 - `yt-dlp`
 - `mutagen`
-- `pynacl`
-- `pillow`
+- `PyNaCl`
+- `Pillow`
 - `requests`
-- `spotifyscraper`
+- `spotifyscraper` (menyediakan module `spotify_scraper`)
 
 Kalau mau install cepat, tinggal pakai file requirement yang ada di repo.
+
+```bash
+python -m pip install -r requierments.txt
+```
 
 ## Cara jalanin
 ### Opsi 1: pakai env var
@@ -572,4 +585,3 @@ Catatan
     Bot preload metadata dan cover pelan-pelan saat startup
     State autoalir disimpan lokal, jadi selera dan history bisa kebawa ke restart berikutnya
     Kalau folder musik kosong, bot tetap bisa start, tapi command lokal ya belum ada isinya
-

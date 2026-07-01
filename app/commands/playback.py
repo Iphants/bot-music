@@ -15,7 +15,7 @@ from .. import music_cache
 from .. import player
 from .. import state
 from .. import spotify
-from ..yt import get_audio_source, cari_yt
+from ..yt import get_audio_source, cari_yt_sp, yt_override
 from functools import partial
 from ..metadata import get_audio_metadata, get_cover
 from ..autoalir_store import save_queue
@@ -522,14 +522,15 @@ def setup(bot: commands.Bot) -> None:
 
         items = []
 
-        for judul, artist, dur_ms in daftar:
+        for judul, artist, dur_ms, cover, album in daftar:
             dur = int(dur_ms // 1000) if dur_ms else None
             items.append(
                 {
                     "title": judul,
                     "uploader": artist,
                     "duration": dur,
-                    "thumbnail": None,
+                    "thumbnail": cover,
+                    "album": album,
                     "sumber": "spotify",
                     "webpage_url": None,
                     "yt_query": f"{judul} {artist} audio",
@@ -552,12 +553,33 @@ def setup(bot: commands.Bot) -> None:
                 state.play_queue[guild_id].append(it)
             save_queue(guild_id)
             if len(items) == 1:
-                desc = f"{items[0]['title']}\noleh {items[0]['uploader']}"
-                judul_embed = "Masuk antrean"
-            else:
-                desc = f"{len(items)} lagu dari **{nama_koleks}**"
-                judul_embed = "Playlist masuk antrean"
-            embed = discord.Embed(title=judul_embed, description=desc, color=0x1DB954)
+                item = items[0]
+                embed = discord.Embed(
+                    title=item["title"],
+                    description=f"oleh {item.get('uploader', 'Unknown')}\nAlbum: {item.get('album', '-')}",
+                    color=0x1DB954,
+                )
+                embed.add_field(
+                    name="Durasi", value=fmt_durasi(item.get("duration")), inline=True
+                )
+                embed.add_field(
+                    name="Posisi",
+                    value=str(len(state.queue_asli[guild_id])),
+                    inline=True,
+                )
+
+            if item.get("thumbnail"):
+                embed.set_thumbnail(url=item["thumbnail"])
+                await ctx.send(embed=embed)
+                return
+
+            desc = f"{len(items)} lagu dari **{nama_koleks}**"
+
+            embed = discord.Embed(
+                title="Playlist masuk antrean", description=desc, color=0x1DB954
+            )
+            if items[0].get("thumbnail"):
+                embed.set_thumbnail(url=items[0]["thumbnail"])
             await ctx.send(embed=embed)
             return
 
@@ -567,8 +589,8 @@ def setup(bot: commands.Bot) -> None:
             state.play_queue[guild_id].append(it)
 
         try:
-            data = await cari_yt(
-                pertama["yt_query"], target_durasi=pertama.get("duration")
+            data = await cari_yt_sp(
+                pertama["title"], pertama["uploader"], pertama.get("duration")
             )
             if not data or not data.get("webpage_url"):
                 await ctx.send("ga nemu audio lagu pertamanya")
@@ -595,6 +617,23 @@ def setup(bot: commands.Bot) -> None:
             state.current_playing.pop(guild_id, None)
             await ctx.send("error internal pas mau play, coba lagi/lapor admin")
             print(traceback.format_exc())
+
+    @bot.command(name="spfix")
+    @checks.is_dj_or_admin()
+    async def spfix(ctx, url: str):
+        guild_id = ctx.guild.id
+        current = state.current_playing.get(guild_id)
+        if not isinstance(current, dict) or current.get("sumber") != "spotify":
+            await ctx.send("command ini cuma buat lagu yang lagi diputer dari !sp")
+            return
+        if "youtube.com/watch" not in url and "youtu.be/" not in url:
+            await ctx.send("kasih link youtube yang bener")
+            return
+        yt_override.set_override(current["title"], current["uploader"], url)
+        await ctx.send(
+            f"oke, mulai sekarang '{current['title']} - {current['uploader']}"
+            f"bakal pakai link itu di !sp lagi"
+        )
 
     @bot.command()
     @commands.cooldown(1, 6, commands.BucketType.user)
@@ -819,7 +858,6 @@ def setup(bot: commands.Bot) -> None:
     @bot.command()
     @checks.is_dj_or_admin()
     async def volume(ctx, level: int):
-
         guild_id = ctx.guild.id
         async with player.kunci_lagu(guild_id):
             if 0 <= level <= 100:

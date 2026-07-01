@@ -41,7 +41,7 @@ def cari_track(query: str):
         if not tracks:
             return None
         t = tracks[0]
-        return (t.name, _artist_str(t), t.duration_ms)
+        return (t.name, _artist_str(t), t.duration_ms, _cover_url(t), _album_name(t))
     except Exception as e:
         print(f"[SPOTIFY] cari_track gagal: {e}")
         return None
@@ -54,16 +54,41 @@ def resolve(url: str):
     try:
         if "/track/" in url:
             t = client.get_track(url)
-            return t.name, [(t.name, _artist_str(t), t.duration_ms)]
+            return t.name, [
+                (t.name, _artist_str(t), t.duration_ms, _cover_url(t), _album_name(t))
+            ]
         if "/playlist/" in url:
             pl = client.get_playlist(url)
             tracks = [pt.track for pt in pl.tracks if pt.track]
-            out = [(t.name, _artist_str(t), t.duration_ms) for t in tracks if t.name]
+            out = [
+                (t.name, _artist_str(t), t.duration_ms, _cover_url(t), _album_name(t))
+                for t in tracks
+                if t.name
+            ]
             return pl.name, out
         if "/album/" in url:
             al = client.get_album(url)
-            out = [(t.name, _artist_str(t), t.duration_ms) for t in al.tracks if t.name]
+            al_cover = _cover_url(al)
+            out = []
+            for t in al.tracks:
+                if not t.name:
+                    continue
+                cov = _cover_url(t) or al_cover
+                out.append((t.name, _artist_str(t), t.duration_ms, cov, al.name))
             return al.name, out
     except Exception as e:
         print(f"[SPOTIFY] resolve gagal: {e}")
     return None, []
+
+
+def _cover_url(track) -> str | None:
+    imgs = getattr(track, "images", None) or []
+    if not imgs:
+        return None
+    best = max(imgs, key=lambda im: getattr(im, "width", 0) or 0)
+    return getattr(best, "url", None)
+
+
+def _album_name(track) -> str | None:
+    al = getattr(track, "album", None)
+    return getattr(al, "name", None) if al else None
