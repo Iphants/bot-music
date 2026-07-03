@@ -101,6 +101,33 @@ def _kandidat_flat(query: str, n: int):
     return info.get("entries") or []
 
 
+def _kandidat_ytm(query: str, n: int):
+    opts = dict(YTDL_OPTIONS)
+    opts["extract_flat"] = True
+    from urllib.parse import quote
+
+    url = f"https://music.youtube.com/search?q={quote(query)}"
+    try:
+        with yt_dlp.YoutubeDL(opts) as flat:
+            info = flat.extract_info(url, download=False)
+        entries = info.get("entries") or []
+    except Exception as ex:
+        print(f"[YTM] gagal search, skip: {ex}")
+        return []
+
+    bersih = []
+    for e in entries:
+        vid = e.get("id") or ""
+        if len(vid) != 11:
+            continue
+        if vid.startswith("UC"):
+            continue
+        bersih.append(e)
+        if len(bersih) >= n:
+            break
+    return bersih
+
+
 async def debugsp_kandidat(judul: str, artist: str, durasi=False):
     queries = [
         f'"{judul}" "{artist}" official audio',
@@ -162,12 +189,83 @@ _BAD_CHANNEL = {
     "うたスキ": -90,
     "tj media": -80,
 }
+_KATA_ABAI = {
+    "official",
+    "audio",
+    "video",
+    "music",
+    "lyric",
+    "lyrics",
+    "mv",
+    "hd",
+    "hq",
+    "full",
+    "ver",
+    "version",
+    "the",
+    "feat",
+    "ft",
+    "featuring",
+    "with",
+}
+_PENANDA_VERSI = {
+    "acoustic",
+    "duet",
+    "remix",
+    "instrumental",
+    "karaoke",
+    "symphony",
+    "orchestral",
+    "piano",
+    "reprise",
+    "sped",
+    "slowed",
+    "nightcore",
+    "8d",
+    "reverb",
+    "radio",
+    "edit",
+    "live",
+    "cover",
+    "remastered",
+    "demo",
+    "chipmunk",
+    "mashup",
+    "extended",
+}
 
 
 def _artist_utama(artist: str) -> str:
     if not artist:
         return ""
     return _norm(artist.split(",")[0])
+
+
+def _bersih_judul(tn: str, an1: str) -> str:
+    t = tn
+    t = re.sub(r"\[[^\]]*\]", " ", t)
+    t = re.sub(
+        r"[-–—|]\s*(official|audio|lyric|music video|mv|hd|hq).*$",
+        " ",
+        t,
+        flags=re.I,
+    )
+    if an1:
+        t = t.replace(an1, " ")
+    t = re.sub(r"[\(\)]", " ", t)
+    t = re.sub(r"[-–—|/:~•·.,!?\"']+", " ", t)
+    kata = [k for k in re.split(r"\s+", t) if k and k not in _KATA_ABAI]
+    return " ".join(kata).strip()
+
+
+def _kata_ekstra(jn: str, tn_bersih: str) -> str:
+    kata_target = set(jn.split())
+    ekstra = [
+        k
+        for k in tn_bersih.split()
+        if k not in kata_target and k in _PENANDA_VERSI and re.search(r"\w", k)
+    ]
+    return " ".join(ekstra)
 
 
 def _skor_kandidat(e, judul, artist, durasi):
@@ -181,40 +279,68 @@ def _skor_kandidat(e, judul, artist, durasi):
     skor = 0
     reason = []
 
-    if jn and jn in tn:
-        skor += 35
-        reason.append("title match +50")
+    tn_bersih = _bersih_judul(tn, an1)
+
+    title_kuat = False
+    if jn and jn == tn_bersih:
+        skor += 55
+        reason.append("title_exact+55")
+        title_kuat = True
+    elif jn and jn in tn:
+        skor += 30
+        reason.append("title_contains+30")
+        title_kuat = True
+        ekstra = _kata_ekstra(jn, tn_bersih)
+        if ekstra:
+            skor -= 35
+            reason.append(f"kata_ekstra({ekstra})-35")
     else:
         kata = [k for k in jn.split() if len(k) > 1]
-        if kata and sum(1 for k in kata if k in tn) >= max(1, len(kata) * 0.6):
-            skor += 15
-            reason.append("title partial +15")
+        if kata:
+            cocok = sum(1 for k in kata if k in tn)
+            rasio = cocok / len(kata)
+            if rasio >= 0.6:
+                skor += 15
+                reason.append("title_partial+15")
+                title_kuat = True
+            elif rasio >= 0.3:
+                skor -= 20
+                reason.append("title_lemah-20")
+            else:
+                skor -= 40
+                reason.append("title_mismatch-40")
+
+    gate = 1.0 if title_kuat else 0.35
 
     if an1 and an1 == un:
-        skor += 65
-        reason.append("channel==artist +65")
+        tambah = int(65 * gate)
+        skor += tambah
+        reason.append(f"channel==artist+{tambah}")
     elif an1 and an1 in un:
-        skor += 45
-        reason.append("artist in channel +45")
+        tambah = int(45 * gate)
+        skor += tambah
+        reason.append(f"artist_in_channel+{tambah}")
+    elif an1 and an1 in tn:
+        skor += 15
+        reason.append("artist_in_title+15")
     elif an and an in tn:
         skor += 15
-        reason.append("artist in title +15")
+        reason.append("artist_full_in_title+15")
     if "- topic" in un:
-        if an1 and (
-            an1 in un.replace("- topic", "").strip()
-            or un.replace("- topic", "").strip() in an1
-        ):
-            skor += 60
-            reason.append("topic_artist +60")
+        topic_ch = un.replace("- topic", "").strip()
+        if an1 and (an1 in topic_ch or topic_ch in an1):
+            tambah = int(60 * gate)
+            skor += tambah
+            reason.append(f"topic_artist+{tambah}")
         else:
             skor += 12
             reason.append("topic_generic+12")
     elif "vevo" in un:
         skor += 45
-        reason.append("vevo +45")
+        reason.append("vevo+45")
     elif an1 and an1 in un and "official" in un:
         skor += 35
-        reason.append("artist official +35")
+        reason.append("artist_official+35")
     if "official audio" in tn:
         skor += 20
         reason.append("official_audio +20")
@@ -264,6 +390,7 @@ async def cari_yt_sp(judul: str, artist: str, durasi=None):
             return await get_audio_source(paksa)
         except Exception as ex:
             print(f"[YT OVERRIDE] gagal resolve override, lanjut scoring: {ex}")
+    an1 = _artist_utama(artist)
     queries = [
         f'"{judul}" "{artist}" official audio',
         f'"{judul}" "{artist}" audio',
@@ -284,6 +411,18 @@ async def cari_yt_sp(judul: str, artist: str, durasi=None):
             seen[vid] = seen.get(vid, 0) + 1
             if vid not in best_posisi or idx < best_posisi[vid]:
                 best_posisi[vid] = idx
+
+    ytm_query = f"{judul} {an1}" if an1 else judul
+    ytm_entries = await loop.run_in_executor(None, _kandidat_ytm, ytm_query, 6)
+    for idx, e in enumerate(ytm_entries):
+        vid = e.get("id")
+        if not vid:
+            continue
+        kandidat.setdefault(vid, e)
+        seen[vid] = seen.get(vid, 0) + 1
+        if vid not in best_posisi or idx < best_posisi[vid]:
+            best_posisi[vid] = idx
+
     if not kandidat:
         return None
 
