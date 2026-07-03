@@ -15,8 +15,10 @@ from .. import music_cache
 from .. import player
 from .. import state
 from .. import spotify
+from .. import sp_alias
 from ..yt import get_audio_source, cari_yt_sp, yt_override
 from functools import partial
+from PIL import Image
 from ..metadata import get_audio_metadata, get_cover
 from ..autoalir_store import save_queue
 from .. import cover_cache
@@ -201,8 +203,6 @@ def _fetch_url(url: str):
 
 
 def _compress_preview(raw_bytes: bytes):
-    from PIL import Image
-
     img = Image.open(io.BytesIO(raw_bytes))
     img.thumbnail((800, 800))
     if img.mode in ("RGBA", "LA", "P"):
@@ -513,6 +513,10 @@ def setup(bot: commands.Bot) -> None:
                 await ctx.send("gabisa baca link spotify nya (track/playlist/album?)")
                 return
         else:
+            q_asli = sp_alias.get_alias(query)
+            if q_asli:
+                print(f"[SP ALIAS] '{query}' -> '{q_asli}'")
+                query = q_asli
             await ctx.send(f"cari di spotify: {query}...")
             hasil = await loop.run_in_executor(None, spotify.cari_track, query)
             if not hasil:
@@ -568,12 +572,13 @@ def setup(bot: commands.Bot) -> None:
                     inline=True,
                 )
 
-            if item.get("thumbnail"):
-                embed.set_thumbnail(url=item["thumbnail"])
+                if item.get("thumbnail"):
+                    embed.set_thumbnail(url=item["thumbnail"])
+
                 await ctx.send(embed=embed)
                 return
 
-            desc = f"{len(items)} lagu dari **{nama_koleks}**"
+            desc = f"{len(items)} lagu dari **{nama_koleks or 'Spotify'}**"
 
             embed = discord.Embed(
                 title="Playlist masuk antrean", description=desc, color=0x1DB954
@@ -596,7 +601,8 @@ def setup(bot: commands.Bot) -> None:
                 await ctx.send("ga nemu audio lagu pertamanya")
                 return
             pertama["webpage_url"] = data["webpage_url"]
-            pertama["thumbnail"] = data.get("thumbnail")
+            if not pertama.get("thumbnail"):
+                pertama["thumbnail"] = data.get("thumbnail")
 
             volume = state.tingkat_suara.get(guild_id, 0.5)
             source = player.build_audio(data["url"], volume=volume)
@@ -634,6 +640,21 @@ def setup(bot: commands.Bot) -> None:
             f"oke, mulai sekarang '{current['title']} - {current['uploader']}"
             f"bakal pakai link itu di !sp lagi"
         )
+
+    @bot.command(name="spmap")
+    async def spmap(ctx, *, isi: str):
+        if "|" not in isi:
+            await ctx.send(
+                "format: !sp map query lama | judul asli`\ncontoh: `!spmap signal for somethink new | はじまりのSignal`"
+            )
+            return
+        query, judul_asli = isi.split("|", 1)
+        query, judul_asli = query.strip(), judul_asli.strip()
+        if not query or not judul_asli:
+            await ctx.send("query sama judul aslinya jangan kosong")
+            return
+        sp_alias.set_alias(query, judul_asli)
+        await ctx.send(f"oke, '{query}' bakal dicari jadi '{judul_asli}'")
 
     @bot.command()
     @commands.cooldown(1, 6, commands.BucketType.user)

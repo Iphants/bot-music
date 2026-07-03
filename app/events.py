@@ -73,18 +73,25 @@ def setup(bot: commands.Bot) -> None:
 
         if before.channel == after.channel:
             return
+
         if member.id == bot.user.id:
             if before.channel and not after.channel:
                 guild_id = before.channel.guild.id
+                await asyncio.sleep(5)
+                guild = bot.get_guild(guild_id)
+                vc = guild.voice_client if guild else None
+
+                if vc and vc.is_connected():
+                    print(f"[CLEAN] false alarm, bot masih connect {guild_id}")
+                    return
+
                 player.cancel_idle_leave(guild_id)
 
-                async with player.kunci_lagu(guild_id):
-                    save_queue(guild_id)
-                    state.queue_asli.pop(guild_id, None)
-                    state.play_queue.pop(guild_id, None)
-                    state.current_playing.pop(guild_id, None)
+                save_queue(guild_id)
 
-                print(f"[CLEAN] bot keluar paksa dari voice, {guild_id}")
+                print(
+                    f"[VOICE] bot lepas dari voice {guild_id} (antrean disimpen, ga dihapus)"
+                )
             return
 
         guild = (

@@ -559,7 +559,7 @@ async def refresh_dashboard_np(guild_id):
 
 def build_audio(source, volume=0.5):
     before_options = ""
-    options = "-vn -loglevel panic"
+    options = "-vn -loglevel warning"
     if isinstance(source, str) and source.startswith(("http://", "https://")):
         before_options += " -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
     src = FFmpegPCMAudio(
@@ -626,7 +626,8 @@ async def replay_c(guild_id, voice_client):
 def after_play(guild_id, voice_client, error):
     if error:
         print(f"[ERROR STREAM] guild {guild_id} error saat play: {error}")
-        return
+        state.ulang_lagu[guild_id] = False
+
     try:
         if state.ulang_lagu.get(guild_id, False):
             loop = runtime.get_bot_loop()
@@ -650,7 +651,12 @@ async def play_next(guild_id, voice_client):
         return
 
     async with kunci_lagu(guild_id):
+        cancel_idle_leave(guild_id)
+
         ensure_deques(guild_id)
+        if voice_client.is_playing() or voice_client.is_paused():
+            print(f"[PLAYNEXT] batal, bot lagi main/pause di guild {guild_id}")
+            return
 
         if not state.play_queue.get(guild_id) or len(state.play_queue[guild_id]) == 0:
             if state.mode_autoalir.get(guild_id, False):

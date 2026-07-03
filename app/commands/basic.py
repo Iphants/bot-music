@@ -136,14 +136,19 @@ def setup(bot: commands.Bot) -> None:
                 "contoh": "!back",
             },
             "sp": {
-                "deskripsi": "cari lagu/playlist/album Spotify, audio diambil dari YouTube",
+                "deskripsi": "cari lagu/playlist/album Spotify, pakai alias kalau ada, audio diambil dari YouTube",
                 "cara pake": "!sp <judul> atau !sp <link spotify>",
-                "contoh": "!sp melukis senja\n!sp https://open.spotify.com/playlist/...",
+                "contoh": "!sp signal for somethink new\n!sp https://open.spotify.com/playlist/...",
             },
             "spfix": {
                 "deskripsi": "paksa lagu Spotify yang lagi diputer supaya pakai link YouTube tertentu buat DJ/admin",
                 "cara pake": "!spfix <link_youtube>",
                 "contoh": "!spfix https://www.youtube.com/watch?v=...",
+            },
+            "spmap": {
+                "deskripsi": "bikin alias query Spotify biar typo/nama lokal dicari jadi judul asli",
+                "cara pake": "!spmap <query lama> | <judul asli>",
+                "contoh": "!spmap signal for somethink new | はじまりのSignal",
             },
         }
 
@@ -185,6 +190,7 @@ def setup(bot: commands.Bot) -> None:
                     "yt",
                     "sp",
                     "spfix",
+                    "spmap",
                     "thumbnail",
                     "search",
                     "pick",

@@ -13,6 +13,7 @@ Fokus utamanya memang file lokal, tapi ada juga playback YouTube, bridge Spotify
 - Cover album di embed
 - YouTube playback lewat `!yt`
 - Spotify search/link lewat `!sp` (metadata dari Spotify, audio dicari di YouTube)
+- Alias query Spotify lewat `!spmap` buat ngebenerin typo/nama lokal
 - Override hasil YouTube buat lagu Spotify lewat `!spfix`
 - Autoalir lagu lokal saat queue habis
 - Simpan state autoalir ke file lokal
@@ -196,12 +197,15 @@ judul/artist/durasi, lalu audio dicari lagi di YouTube lewat `yt-dlp`.
 Yang bisa dipakai:
 
 - `!sp <judul>` - cari track Spotify, ambil hasil pertama, lalu putar audio yang
-  cocok dari YouTube.
+  cocok dari YouTube. Sebelum cari ke Spotify, bot ngecek alias dari `sp_alias`
+  dulu, jadi typo atau nama lokal bisa diarahkan ke judul asli.
 - `!sp <link track>` - baca satu track Spotify.
 - `!sp <link playlist>` - lagu pertama langsung dicari di YouTube biar cepet
   bunyi, sisanya baru dicari pas gilirannya diputar (lazy), jadi playlist gede
   nggak bikin command nge-freeze nyari semua di depan.
 - `!sp <link album>` - masukin track album ke antrean dengan cara lazy yang sama.
+- `!spmap <query lama> | <judul asli>` - simpan alias query Spotify. Contoh:
+  `!spmap signal for somethink new | はじまりのSignal`.
 - `!spfix <link YouTube>` - buat DJ/admin, paksa lagu Spotify yang lagi diputar
   supaya nanti pakai link YouTube itu lagi.
 
@@ -214,9 +218,17 @@ SPOTIFY_SP_DC=isi_cookie_sp_dc
 Kalau `SPOTIFY_SP_DC` belum diset atau library Spotify belum ke-install,
 command `!sp` bakal nolak jalan dengan pesan fitur Spotify belum aktif.
 
-Karena audio dicari di YouTube by judul+artist+durasi, versi yang kepilih nggak selalu persis yang dimaksud (bisa kena cover/versi lain kalau metadata-nya mirip). Buat versi spesifik, pakai `!yt <link>` langsung.
+Pencarian audio `!sp` ke YouTube sekarang pakai judul, artist, dan durasi dari
+Spotify buat scoring kandidat. Bot juga ngasih penalti ke hasil yang biasanya
+salah sasaran seperti cover, karaoke, instrumental, slowed/sped up, loop, dan
+versi panjang, sambil lebih milih channel topic/official/audio kalau cocok.
+Tetap aja hasil YouTube bisa meleset kalau metadata terlalu mirip.
 
 Kalau `!sp` salah milih audio YouTube, putar lagunya dulu lalu pakai `!spfix <link YouTube>` saat lagu Spotify itu masih jalan. Mapping manualnya disimpan lokal di `app/data/yt_override.json`, jadi tidak perlu ikut Git.
+
+Kalau yang salah justru pencarian Spotify-nya karena typo, romanisasi, atau nama
+pendek yang beda dari judul asli, pakai `!spmap`. Mapping alias disimpan lokal di
+`app/data/sp_alias.json`, jadi tidak perlu ikut Git.
 
 ## system
 
@@ -445,6 +457,7 @@ Kalau jalan lewat guard, yang dipakai guard adalah runtime_config.json.
 | --- | --- |
 | `!yt <judul>` | Cari dan putar lagu dari YouTube |
 | `!sp <judul/link>` | Cari Spotify atau baca link track/playlist/album, lalu putar via YouTube |
+| `!spmap <query> \| <judul asli>` | Simpan alias query Spotify ke judul asli |
 | `!spfix <link YouTube>` | Simpan override YouTube buat lagu Spotify yang lagi diputar (DJ/admin only) |
 
 ### Autoalir

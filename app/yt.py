@@ -155,11 +155,25 @@ _BAD = {
     "lyric video": -20,
     "歌ってみた": -60,
 }
+_BAD_CHANNEL = {
+    "karaoke": -90,
+    "joysound": -90,
+    "歌っちゃ王": -90,
+    "うたスキ": -90,
+    "tj media": -80,
+}
+
+
+def _artist_utama(artist: str) -> str:
+    if not artist:
+        return ""
+    return _norm(artist.split(",")[0])
 
 
 def _skor_kandidat(e, judul, artist, durasi):
     jn = _norm(judul)
     an = _norm(artist)
+    an1 = _artist_utama(artist)
     tn = _norm(e.get("title"))
     un = _norm(e.get("uploader") or e.get("channel"))
     dur = e.get("duration")
@@ -176,22 +190,29 @@ def _skor_kandidat(e, judul, artist, durasi):
             skor += 15
             reason.append("title partial +15")
 
-    if an and an == un:
+    if an1 and an1 == un:
         skor += 65
-        reason.append("channel==artist +55")
-    elif an and an in un:
+        reason.append("channel==artist +65")
+    elif an1 and an1 in un:
         skor += 45
         reason.append("artist in channel +45")
     elif an and an in tn:
         skor += 15
-        reason.append("artist in title +30")
+        reason.append("artist in title +15")
     if "- topic" in un:
-        skor += 60
-        reason.append("topic +60")
+        if an1 and (
+            an1 in un.replace("- topic", "").strip()
+            or un.replace("- topic", "").strip() in an1
+        ):
+            skor += 60
+            reason.append("topic_artist +60")
+        else:
+            skor += 12
+            reason.append("topic_generic+12")
     elif "vevo" in un:
         skor += 45
         reason.append("vevo +45")
-    elif an and an in un and "official" in un:
+    elif an1 and an1 in un and "official" in un:
         skor += 35
         reason.append("artist official +35")
     if "official audio" in tn:
@@ -227,6 +248,11 @@ def _skor_kandidat(e, judul, artist, durasi):
             skor += penalti
             reason.append(f"{kata}{penalti}")
 
+    for kata, penalti in _BAD_CHANNEL.items():
+        if kata in un:
+            skor += penalti
+            reason.append(f"ch:{kata}{penalti}")
+
     return skor, reason
 
 
@@ -258,48 +284,46 @@ async def cari_yt_sp(judul: str, artist: str, durasi=None):
             seen[vid] = seen.get(vid, 0) + 1
             if vid not in best_posisi or idx < best_posisi[vid]:
                 best_posisi[vid] = idx
-        if not kandidat:
-            return None
+    if not kandidat:
+        return None
 
-        skored = []
-        for vid, e in kandidat.items():
-            s, reason = _skor_kandidat(e, judul, artist, durasi)
-            pos = best_posisi.get(vid, 99)
+    skored = []
+    for vid, e in kandidat.items():
+        s, reason = _skor_kandidat(e, judul, artist, durasi)
+        pos = best_posisi.get(vid, 99)
 
-            if pos == 0:
-                s += 25
-                reason.append("yt_rank#1+25")
-            elif pos <= 2:
-                s += 15
-                reason.append(f"yt_rank#{pos + 1}+15")
-            elif pos <= 4:
-                s += 8
-                reason.append(f"yt_rank#{pos + 1}+8")
-            if seen.get(vid, 0) >= 3:
-                s += 15
-                reason.append("mucul_3query+15")
-            elif seen.get(vid, 0) == 2:
-                s += 8
-                reason.append("muncul_2queery+8")
-            skored.append((s, e, reason))
-        skored.sort(key=lambda x: x[0], reverse=True)
+        if pos == 0:
+            s += 25
+            reason.append("yt_rank#1+25")
+        elif pos <= 2:
+            s += 15
+            reason.append(f"yt_rank#{pos + 1}+15")
+        elif pos <= 4:
+            s += 8
+            reason.append(f"yt_rank#{pos + 1}+8")
+        if seen.get(vid, 0) >= 3:
+            s += 15
+            reason.append("muncul_3query+15")
+        elif seen.get(vid, 0) == 2:
+            s += 8
+            reason.append("muncul_2queery+8")
+        skored.append((s, e, reason))
+    skored.sort(key=lambda x: x[0], reverse=True)
 
-        skored.sort(key=lambda x: x[0], reverse=True)
-        print(f"\n[YT RANK] target: {judul} | {artist} | dur={durasi}")
-        for i, (s, e, reason) in enumerate(skored[:5], 1):
-            print(
-                f" {i}. score={s} | dur={e.get('duration')} | "
-                f"up={e.get('uploader')!r} | title={e.get('title')!r}"
-                f"title={e.get('title')!r}"
-            )
-            print(f"   {'+'.join(reason)}")
+    print(f"\n[YT RANK] target: {judul} | {artist} | dur={durasi}")
+    for i, (s, e, reason) in enumerate(skored[:5], 1):
+        print(
+            f" {i}. score={s} | dur={e.get('duration')} | "
+            f"up={e.get('uploader')!r} | title={e.get('title')!r}"
+        )
+        print(f"   {'+'.join(reason)}")
 
-            for s, e, _ in skored:
-                vid = e.get("id")
-                url = f"https://www.youtube.com/watch?v={vid}"
-                try:
-                    return await get_audio_source(url)
-                except Exception as ex:
-                    print(f"[[YT RANK] gagal esolve {vid}: {ex}]")
-                    continue
-            return None
+    for s, e, _ in skored:
+        vid = e.get("id")
+        url = f"https://www.youtube.com/watch?v={vid}"
+        try:
+            return await get_audio_source(url)
+        except Exception as ex:
+            print(f"[[YT RANK] gagal esolve {vid}: {ex}]")
+            continue
+    return None
